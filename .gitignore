@@ -1,0 +1,5 @@
+# transient/generated — mirrors genie-promote-cicd
+build/
+*.pyc
+__pycache__/
+.DS_Store

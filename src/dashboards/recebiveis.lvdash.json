@@ -1,0 +1,51 @@
+{
+  "datasets": [
+    {
+      "name": "ds_volume_bandeira",
+      "displayName": "Volume por bandeira",
+      "queryLines": [
+        "SELECT a.bandeira AS bandeira, SUM(f.valor) AS volume_total\n",
+        "FROM dev_recebiveis.diamond.fato_recebiveis AS f\n",
+        "JOIN dev_recebiveis.diamond.dim_arranjo AS a ON f.arranjo = a.arranjo\n",
+        "WHERE f.status = 'REGISTRADO'\n",
+        "GROUP BY a.bandeira\n",
+        "ORDER BY volume_total DESC"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "pagina_principal",
+      "displayName": "Painel Recebíveis",
+      "layout": [
+        {
+          "widget": {
+            "name": "w_volume_bandeira",
+            "queries": [
+              {
+                "name": "q_main",
+                "query": {
+                  "datasetName": "ds_volume_bandeira",
+                  "fields": [
+                    {"name": "bandeira", "expression": "`bandeira`"},
+                    {"name": "volume_total", "expression": "`volume_total`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {"fieldName": "bandeira", "scale": {"type": "categorical"}, "displayName": "Bandeira"},
+                "y": {"fieldName": "volume_total", "scale": {"type": "quantitative"}, "displayName": "Volume (BRL)"}
+              }
+            }
+          },
+          "position": {"x": 0, "y": 0, "width": 6, "height": 6}
+        }
+      ]
+    }
+  ]
+}

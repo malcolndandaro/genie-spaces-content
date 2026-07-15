@@ -1,0 +1,180 @@
+{
+  "version": 2,
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "dev_recebiveis.diamond.dim_arranjo",
+        "column_configs": [
+          {
+            "column_name": "arranjo",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "bandeira",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "descricao",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "dev_recebiveis.diamond.dim_cedente",
+        "column_configs": [
+          {
+            "column_name": "cedente_id",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "cnpj",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "nome",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "uf",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+        "column_configs": [
+          {
+            "column_name": "arranjo",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "cedente_id",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "data",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "status",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "valor",
+            "enable_format_assistance": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "01f16e83e8191aca8d0cde8be58e61dd",
+        "content": [
+          "Este espaço responde perguntas sobre RECEBÍVEIS registrados na CERC, usando\n",
+          "  exclusivamente as tabelas certificadas da camada `diamond` do catálogo de recebíveis.\n",
+          "\n",
+          "  Modelo de dados:\n",
+          "  - `fato_recebiveis`: tabela de fatos. Cada linha é um recebível registrado, com\n",
+          "    `data` (data de registro), `valor` (BRL), `status`, e chaves `cedente_id` e `arranjo`.\n",
+          "  - `dim_cedente`: o cedente (empresa que registra o recebível) — `nome`, `cnpj`, `uf`.\n",
+          "  - `dim_arranjo`: o arranjo de pagamento e a `bandeira` (VISA, MASTERCARD, ELO, HIPERCARD, AMEX).\n",
+          "\n",
+          "  Regras:\n",
+          "  - Valores são em Reais (BRL); ao somar, rotule como \"volume\" ou \"valor total\".\n",
+          "  - `status` ∈ {REGISTRADO, LIQUIDADO, ONERADO, CANCELADO}. Quando o usuário disser\n",
+          "    recebíveis \"registrados\", filtre por status = 'REGISTRADO', salvo indicação contrária.\n",
+          "  - \"ontem\" = current_date() - 1; \"mês atual\" = a partir de date_trunc('MONTH', current_date()).\n",
+          "  - Sempre faça JOIN pelas chaves indicadas; nunca cruze cedentes entre si.\n",
+          "  - Use apenas as três tabelas da camada diamond; não invente colunas nem tabelas.\n",
+          "  - Responda em português, de forma objetiva, e mostre o SQL utilizado."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "01f16e841a4514498da2f8ce8e9941cd",
+        "question": [
+          "Qual o volume total de recebíveis registrados por bandeira nos últimos 30 dias?"
+        ],
+        "sql": [
+          "SELECT a.bandeira,                                                                                                                                                                                         \n",
+          "         SUM(f.valor) AS volume_total                                                                                                                                                                        \n",
+          "  FROM dev_recebiveis.diamond.fato_recebiveis f                                                                                                                                                              \n",
+          "  JOIN dev_recebiveis.diamond.dim_arranjo a                                                                                                                                                                  \n",
+          "    ON f.arranjo = a.arranjo                                                                                                                                                                                 \n",
+          "  WHERE f.status = 'REGISTRADO'                                                                                                                                                                              \n",
+          "    AND f.data >= current_date() - INTERVAL 30 DAYS                                                                                                                                                          \n",
+          "  GROUP BY a.bandeira                                                                                                                                                                                        \n",
+          "  ORDER BY volume_total DESC;  "
+        ]
+      },
+      {
+        "id": "01f16e8425a71fe29e3fbd26bf0b2178",
+        "question": [
+          "Quais os 5 cedentes com maior valor registrado no mês atual, e de qual UF?    "
+        ],
+        "sql": [
+          "  SELECT c.nome,                                                                                                                                                                                             \n",
+          "         c.uf,                                                                                                                                                                                               \n",
+          "         SUM(f.valor) AS valor_total                                                                                                                                                                         \n",
+          "  FROM dev_recebiveis.diamond.fato_recebiveis f                                                                                                                                                              \n",
+          "  JOIN dev_recebiveis.diamond.dim_cedente c                                                                                                                                                                  \n",
+          "    ON f.cedente_id = c.cedente_id                                                                                                                                                                           \n",
+          "  WHERE f.status = 'REGISTRADO'                                                                                                                                                                              \n",
+          "    AND f.data >= date_trunc('MONTH', current_date())                                                                                                                                                        \n",
+          "  GROUP BY c.nome, c.uf\n",
+          "  ORDER BY valor_total DESC\n",
+          "  LIMIT 5;"
+        ]
+      }
+    ],
+    "join_specs": [
+      {
+        "id": "01f16e847e6a1d91aed1d747c19bc7f2",
+        "left": {
+          "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+          "alias": "fato_recebiveis"
+        },
+        "right": {
+          "identifier": "dev_recebiveis.diamond.dim_cedente",
+          "alias": "dim_cedente"
+        },
+        "sql": [
+          "`fato_recebiveis`.`cedente_id` = `dim_cedente`.`cedente_id`",
+          "--rt=FROM_RELATIONSHIP_TYPE_MANY_TO_ONE--"
+        ],
+        "instruction": [
+          "Use para trazer nome, cnpj e uf do cedente de cada recebível."
+        ]
+      },
+      {
+        "id": "01f16e848d93192e88e3f3eb02257024",
+        "left": {
+          "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+          "alias": "fato_recebiveis"
+        },
+        "right": {
+          "identifier": "dev_recebiveis.diamond.dim_arranjo",
+          "alias": "dim_arranjo"
+        },
+        "sql": [
+          "`fato_recebiveis`.`arranjo` = `dim_arranjo`.`arranjo`",
+          "--rt=FROM_RELATIONSHIP_TYPE_MANY_TO_ONE--"
+        ],
+        "instruction": [
+          "Use para trazer descrição e bandeira do arranjo de pagamento."
+        ]
+      }
+    ]
+  }
+}
