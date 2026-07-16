@@ -81,10 +81,53 @@ jobs:
         working-directory: app
         # Deterministic COUNT gate (offline — reads the rendered JSON, no workspace creds): fails the
         # PR when a space has fewer than the required benchmark questions, so branch protection blocks
-        # the merge. The full eval-RUN pass-rate can't run pre-merge (no live prod space + no dev creds
-        # in CI), so it stays the app's own gate; this count is the merge-blocking floor.
+        # the merge. This is the always-on FLOOR; the eval-RUN PASS-RATE gate is the separate job below.
         run: |
           for f in build/genie/*.serialized_space.json; do
             [ -f "$f" ] || continue
             python3 scripts/check_eval.py "$f"
+          done
+
+  # The eval-run PASS-RATE gate (blocks the merge on a below-threshold score). Its own job because it
+  # authenticates to the DEV workspace (the live space with the benchmarks) as the dev-reader SP —
+  # distinct auth from the prod-SP `validate` job above. Both jobs are required checks under branch
+  # protection, so either failing blocks the merge. Same checkout+overlay+render preamble.
+  eval-run:
+    name: eval-run pass-rate (dev)
+    runs-on: self-hosted   # workspace IP-ACL blocks hosted runners
+    if: vars.DATABRICKS_DEV_HOST != '' && vars.DATABRICKS_DEV_SP_CLIENT_ID != ''
+    env:
+      # Targets DEV, as the dev-reader SP (oauth-m2m) — the space being promoted is live in dev.
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_DEV_HOST }}
+      DATABRICKS_AUTH_TYPE: oauth-m2m
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_DEV_SP_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_DEV_SP_SECRET }}
+      # The pinned-slug map so check_eval_run can recover the dev space id from a pinned slug (must
+      # match the app's APP_SPACE_SLUGS baked in build_promote_app.sh).
+      APP_SPACE_SLUGS: '{"01f16e8322661161a83f7d1f2a1bec14": "receivables"}'
+    steps:
+      - name: Checkout app repo (pipeline logic)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_REPO }}
+          path: app
+      - name: Checkout content (this PR)
+        uses: actions/checkout@v4
+        with:
+          path: content
+      - name: Overlay content src/ into the app working tree
+        run: rsync -a --delete content/src/ app/src/
+      - uses: databricks/setup-cli@main
+        with:
+          version: 1.4.0
+      - name: Pre-render serialized_space (dev_->prod_) + slug files
+        working-directory: app
+        run: bash scripts/render.sh prod
+      - name: EVAL-RUN — Genie re-runs the benchmarks; pass-rate must clear the threshold
+        working-directory: app
+        run: |
+          python3 -m pip install -q 'databricks-sdk>=0.111.0'
+          for f in build/genie/*.serialized_space.json; do
+            [ -f "$f" ] || continue
+            python3 scripts/check_eval_run.py "$f"
           done
