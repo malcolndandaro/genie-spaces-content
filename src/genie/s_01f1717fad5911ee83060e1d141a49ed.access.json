@@ -1,6 +1,11 @@
 {
   "space_permissions": [
     {
+      "principal": "users",
+      "is_group": true,
+      "level": "CAN_VIEW"
+    },
+    {
       "principal": "malcoln.dandaro@databricks.com",
       "is_group": false,
       "level": "CAN_RUN"
