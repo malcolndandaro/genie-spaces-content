@@ -3,7 +3,7 @@
     {
       "principal": "users",
       "is_group": true,
-      "level": "CAN_VIEW"
+      "level": "CAN_RUN"
     }
   ],
   "uc_principals": [
