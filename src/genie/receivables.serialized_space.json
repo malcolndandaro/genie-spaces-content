@@ -1,9 +1,64 @@
 {
   "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "01f1764562e711488b1145e21e056879",
+        "question": [
+          "Qual é o valor total de recebíveis registrados por mês nos últimos 12 meses?"
+        ]
+      },
+      {
+        "id": "01f1764562e711579c1ebe2dd0109e44",
+        "question": [
+          "Quais são os 10 cedentes com maior valor de recebíveis registrados, ordenados de forma decrescente?"
+        ]
+      },
+      {
+        "id": "01f1764562e7115c9ccd606d7bc6343c",
+        "question": [
+          "Como está distribuído o volume de recebíveis por status (pendente, liquidado, cancelado)?"
+        ]
+      },
+      {
+        "id": "01f1764562e7115e9da7eb2d82706539",
+        "question": [
+          "Qual é a participação de cada bandeira (Visa, Mastercard, etc.) no valor total de recebíveis?"
+        ]
+      },
+      {
+        "id": "01f1764562e71160b6476499233240fd",
+        "question": [
+          "Quais estados (UF) concentram o maior número de cedentes cadastrados?"
+        ]
+      },
+      {
+        "id": "01f1764562e71162b76766033270c8f2",
+        "question": [
+          "Como evoluiu diariamente o valor de recebíveis registrados no último mês?"
+        ]
+      },
+      {
+        "id": "01f1764562e711658153f518f22ced15",
+        "question": [
+          "Quais arranjos de pagamento apresentam maior concentração de recebíveis com status pendente?"
+        ]
+      },
+      {
+        "id": "01f1764562e71167acad05ba43357803",
+        "question": [
+          "Qual é o valor médio de recebíveis por cedente, segmentado por estado (UF) e bandeira?"
+        ]
+      }
+    ]
+  },
   "data_sources": {
     "tables": [
       {
         "identifier": "dev_recebiveis.diamond.dim_arranjo",
+        "description": [
+          "PURPOSE:Dimension table mapping payment arrangement codes to their brand (bandeira) and human-readable descriptionBEST FOR:Enriching receivables data with arrangement labels, filtering by payment brand, arrangement-level reportingGRAIN:One row per payment arrangement code (arranjo)Dimensão do arranjo de pagamento, contendo o código do arranjo, bandeira (VISA, MASTERCARD, ELO, HIPERCARD, AMEX) e descrição."
+        ],
         "column_configs": [
           {
             "column_name": "arranjo",
@@ -12,6 +67,15 @@
           },
           {
             "column_name": "bandeira",
+            "synonyms": [
+              "bandeira",
+              "VISA",
+              "MASTERCARD",
+              "ELO",
+              "HIPERCARD",
+              "AMEX",
+              "cartão"
+            ],
             "enable_format_assistance": true,
             "enable_entity_matching": true
           },
@@ -24,6 +88,9 @@
       },
       {
         "identifier": "dev_recebiveis.diamond.dim_cedente",
+        "description": [
+          "PURPOSE:Dimension table containing assignor (cedente) entities identified by CNPJ, name, and Brazilian state (UF)BEST FOR:Assignor lookup and enrichment, geographic analysis by state, CNPJ-based entity resolutionGRAIN:One row per assignor (cedente_id)Dimensão do cedente: empresa que registra o recebível, contendo nome, CNPJ e UF (estado)."
+        ],
         "column_configs": [
           {
             "column_name": "cedente_id",
@@ -48,6 +115,9 @@
       },
       {
         "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+        "description": [
+          "PURPOSE:Fact table recording receivables transactions with monetary value, status, payment arrangement, and assignor by dateBEST FOR:Receivables volume and value analysis, status-based aging reports, arrangement and assignor performance tracking, daily financial trendsGRAIN:One row per receivable event (cedente_id + arranjo + data + status)Tabela de fatos de recebíveis registrados na CERC. Cada linha representa um recebível com data de registro, valor em BRL, status (REGISTRADO, LIQUIDADO, ONERADO, CANCELADO), cedente_id e arranjo."
+        ],
         "column_configs": [
           {
             "column_name": "arranjo",
@@ -69,6 +139,13 @@
           },
           {
             "column_name": "valor",
+            "synonyms": [
+              "volume",
+              "valor total",
+              "montante",
+              "BRL",
+              "valor em reais"
+            ],
             "enable_format_assistance": true
           }
         ]
@@ -80,23 +157,32 @@
       {
         "id": "01f16e83e8191aca8d0cde8be58e61dd",
         "content": [
-          "Este espaço responde perguntas sobre RECEBÍVEIS registrados na CERC, usando\n",
-          "  exclusivamente as tabelas certificadas da camada `diamond` do catálogo de recebíveis.\n",
+          "PURPOSE:\n",
+          "- Este espaço responde perguntas sobre RECEBÍVEIS registrados na CERC, usando\n",
+          "- exclusivamente as tabelas certificadas da camada diamond do catálogo de recebíveis.\n",
           "\n",
-          "  Modelo de dados:\n",
-          "  - `fato_recebiveis`: tabela de fatos. Cada linha é um recebível registrado, com\n",
-          "    `data` (data de registro), `valor` (BRL), `status`, e chaves `cedente_id` e `arranjo`.\n",
-          "  - `dim_cedente`: o cedente (empresa que registra o recebível) — `nome`, `cnpj`, `uf`.\n",
-          "  - `dim_arranjo`: o arranjo de pagamento e a `bandeira` (VISA, MASTERCARD, ELO, HIPERCARD, AMEX).\n",
+          "DISAMBIGUATION:\n",
+          "- Se o usuário mencionar \"bandeira\" sem especificar arranjo, pergunte se deseja filtrar por bandeira (coluna bandeira em dim_arranjo) ou por código de arranjo (arranjo); são campos distintos.\n",
+          "- Se o usuário mencionar \"empresa\", \"fornecedor\" ou \"lojista\" sem usar o termo técnico, confirme se está se referindo ao cedente (cedente_id/cnpj/nome em dim_cedente).\n",
+          "- Se o usuário pedir dados por \"período\", \"mês\" ou \"ano\" sem especificar datas exatas, solicite o intervalo de datas desejado antes de gerar a consulta, pois a tabela fato usa a coluna data como única dimensão temporal.\n",
+          "- Se o usuário mencionar \"valor total\", \"volume\" ou \"montante\" sem indicar filtro de status, pergunte se deve incluir todos os status ou apenas um subconjunto (por exemplo, somente REGISTRADO); o campo status afeta diretamente o resultado agregado.\n",
+          "- Se o usuário citar um CNPJ e um nome de cedente que pareçam conflitantes, priorize o CNPJ como identificador canônico, pois cedente_id é derivado de cnpj em dim_cedente.\n",
+          "- Se o usuário perguntar sobre \"recebíveis cancelados\" ou \"liquidados\" sem mencionar status, confirme o status desejado antes de filtrar, listando as opções válidas: REGISTRADO, LIQUIDADO, ONERADO, CANCELADO.\n",
           "\n",
-          "  Regras:\n",
-          "  - Valores são em Reais (BRL); ao somar, rotule como \"volume\" ou \"valor total\".\n",
-          "  - `status` ∈ {REGISTRADO, LIQUIDADO, ONERADO, CANCELADO}. Quando o usuário disser\n",
-          "    recebíveis \"registrados\", filtre por status = 'REGISTRADO', salvo indicação contrária.\n",
-          "  - \"ontem\" = current_date() - 1; \"mês atual\" = a partir de date_trunc('MONTH', current_date()).\n",
-          "  - Sempre faça JOIN pelas chaves indicadas; nunca cruze cedentes entre si.\n",
-          "  - Use apenas as três tabelas da camada diamond; não invente colunas nem tabelas.\n",
-          "  - Responda em português, de forma objetiva, e mostre o SQL utilizado."
+          "DATA QUALITY NOTES:\n",
+          "- Interpret 'this year', 'last quarter', and 'YTD' relative to the current system date from NOW(). Do not rely on static flags in DIM_DATE for current-period filtering.\n",
+          "\n",
+          "- status ∈ {REGISTRADO, LIQUIDADO, ONERADO, CANCELADO}.\n",
+          "\n",
+          "CONSTRAINTS:\n",
+          "- For aggregate questions over dates or periods, prefer the metric view mv_* when one exists that covers the requested dimensions; otherwise use a regular TABLE.\n",
+          "- When a question asks for results 'by X, then Y', return columns in that order and sort the result set by X, then Y ascending unless the question specifies otherwise.\n",
+          "\n",
+          "- Sempre faça JOIN pelas chaves indicadas; nunca cruze cedentes entre si.\n",
+          "- Use apenas as três tabelas da camada diamond; não invente colunas nem tabelas.\n",
+          "\n",
+          "INSTRUCTIONS YOU MUST FOLLOW WHEN PROVIDING SUMMARIES:\n",
+          "- Responda em português, de forma objetiva, e mostre o SQL utilizado."
         ]
       }
     ],
@@ -136,6 +222,362 @@
           "  ORDER BY valor_total DESC\n",
           "  LIMIT 5;"
         ]
+      },
+      {
+        "id": "01f17646b246127182a22dd47fddc04a",
+        "question": [
+          "Quais são os 5 estados com maior número de cedentes únicos cadastrados?"
+        ],
+        "sql": [
+          "SELECT uf, COUNT(DISTINCT cedente_id) AS total_cedentes FROM dev_recebiveis.diamond.dim_cedente GROUP BY uf ORDER BY total_cedentes DESC LIMIT 5"
+        ],
+        "usage_guidance": [
+          "Use quando o usuário quiser saber quais estados concentram mais cedentes cadastrados."
+        ]
+      },
+      {
+        "id": "01f1764744fb11cd881eaf2cef8c84a6",
+        "question": [
+          "Mostre os primeiros 10 cedentes cadastrados, com seu ID, CNPJ, nome e UF."
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.cedente_id,\n",
+          "    t.cnpj,\n",
+          "    t.nome,\n",
+          "    t.uf\n",
+          "FROM dev_recebiveis.diamond.dim_cedente t\n",
+          "LIMIT 10"
+        ],
+        "usage_guidance": [
+          "Simple enumerate archetype: selects the four prioritized columns from dim_cedente with a LIMIT, no filters or joins. Avoids duplicating existing questions (which focus on aggregations, top-N by value, or state counts) by simply listing raw cedente records."
+        ]
+      },
+      {
+        "id": "01f1764744fb12349a6d8ffb903da244",
+        "question": [
+          "Qual a proporção de cedentes por UF em relação ao total de cedentes cadastrados?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    c.uf,\n",
+          "    COUNT(c.cedente_id) AS total_cedentes_uf,\n",
+          "    ROUND(\n",
+          "        COUNT(c.cedente_id) * 100.0 / SUM(COUNT(c.cedente_id)) OVER (),\n",
+          "        2\n",
+          "    ) AS percentual_do_total\n",
+          "FROM dev_recebiveis.diamond.dim_cedente c\n",
+          "GROUP BY c.uf\n",
+          "ORDER BY total_cedentes_uf DESC"
+        ],
+        "usage_guidance": [
+          "This example exercises the ratio_by_dimension archetype by computing the share (%) of assignors per Brazilian state (UF) relative to the total count. It uses only the allowed table and columns (cedente_id, uf), applies GROUP BY on the categorical dimension, and uses a window SUM to compute the ratio — matching the CASE+SUM/SUM shape. It does not duplicate any existing question's intent (existing ones focus on top-5 states by unique count or top cedentes by value)."
+        ]
+      },
+      {
+        "id": "01f1764744fb12648b1b5980d276dfc2",
+        "question": [
+          "Qual o total acumulado de recebíveis ao longo do tempo por arranjo de pagamento?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    f.data,\n",
+          "    f.arranjo,\n",
+          "    SUM(f.valor) AS valor_diario,\n",
+          "    SUM(SUM(f.valor)) OVER (\n",
+          "        PARTITION BY f.arranjo\n",
+          "        ORDER BY f.data\n",
+          "        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n",
+          "    ) AS total_acumulado\n",
+          "FROM dev_recebiveis.diamond.fato_recebiveis f\n",
+          "GROUP BY f.data, f.arranjo\n",
+          "ORDER BY f.arranjo, f.data"
+        ],
+        "usage_guidance": [
+          "This example exercises the running_total archetype using SUM() OVER (PARTITION BY arranjo ORDER BY data) on the fato_recebiveis table. It prioritizes the columns arranjo, data, and valor as specified in the coverage focus. The question asks about cumulative receivables over time broken down by payment arrangement, which is distinct from existing questions that focus on volume by flag, top assignors, or state-level aggregations."
+        ]
+      },
+      {
+        "id": "01f1764744fb129388abb6e2d9d0e724",
+        "question": [
+          "Mostre os 10 recebíveis mais recentes com data, arranjo, cedente, status e valor."
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.data,\n",
+          "    t.arranjo,\n",
+          "    t.cedente_id,\n",
+          "    t.status,\n",
+          "    t.valor\n",
+          "FROM dev_recebiveis.diamond.fato_recebiveis t\n",
+          "ORDER BY t.data DESC\n",
+          "LIMIT 10"
+        ],
+        "usage_guidance": [
+          "Covers the simple_enumerate archetype by selecting key columns from a single table with ORDER BY and LIMIT. Uses all prioritized columns (arranjo, cedente_id, data, status, valor), references the exact qualified table identifier, and does not duplicate any existing question's intent."
+        ]
+      },
+      {
+        "id": "01f1764744fb1467977cb5974f478994",
+        "question": [
+          "Quais são os 10 estados (UF) com maior número de cedentes cadastrados?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.uf,\n",
+          "    COUNT(t.cedente_id) AS total_cedentes\n",
+          "FROM dev_recebiveis.diamond.dim_cedente t\n",
+          "GROUP BY t.uf\n",
+          "ORDER BY total_cedentes DESC\n",
+          "LIMIT 10"
+        ],
+        "usage_guidance": [
+          "This Top-N query aggregates cedente_id count by UF, orders descending, and limits to 10 rows — satisfying the archetype's SELECT/GROUP_BY/ORDER_BY/LIMIT contract. It uses only allowlisted identifiers and columns (cedente_id, uf), avoids duplicating existing questions (which ask for unique cedentes in top 5 states or proportions), and applies no invented filter values."
+        ]
+      },
+      {
+        "id": "01f1764744fb14b1bcecc6f947839cf3",
+        "question": [
+          "Quais bandeiras possuem mais de um arranjo de pagamento cadastrado?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.bandeira,\n",
+          "    COUNT(t.arranjo) AS total_arranjos\n",
+          "FROM dev_recebiveis.diamond.dim_arranjo t\n",
+          "WHERE t.bandeira IS NOT NULL\n",
+          "GROUP BY t.bandeira\n",
+          "HAVING COUNT(t.arranjo) > 1\n",
+          "ORDER BY total_arranjos DESC"
+        ],
+        "usage_guidance": [
+          "This example exercises SELECT, WHERE, GROUP_BY (with HAVING) against dim_arranjo, prioritizing the bandeira and arranjo columns. It asks a distinct business question (which brands have multiple payment arrangements) not covered by existing questions, uses only allowlisted identifiers with a declared alias, and applies no invented filter values."
+        ]
+      },
+      {
+        "id": "01f1764744fb14df9dcdc75fdf199ce2",
+        "question": [
+          "Quantos CNPJs distintos de cedentes estão cadastrados por estado (UF)?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.uf,\n",
+          "    COUNT(DISTINCT t.cnpj) AS total_cnpjs\n",
+          "FROM dev_recebiveis.diamond.dim_cedente t\n",
+          "GROUP BY t.uf\n",
+          "ORDER BY total_cnpjs DESC"
+        ],
+        "usage_guidance": [
+          "This example exercises the distinct_count_by_dim archetype by counting distinct CNPJs grouped by UF. It uses only the allowed table and columns (uf, cnpj), applies proper three-part identifier qualification, and introduces a new angle (CNPJ count per state) not covered by existing questions which focus on cedente_id counts or top-N rankings."
+        ]
+      },
+      {
+        "id": "01f1764744fb1512a81539f7ec848ea8",
+        "question": [
+          "Quantos arranjos de pagamento existem por bandeira e descrição?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.bandeira,\n",
+          "    t.descricao,\n",
+          "    COUNT(t.arranjo) AS quantidade_arranjos\n",
+          "FROM dev_recebiveis.diamond.dim_arranjo t\n",
+          "GROUP BY\n",
+          "    t.bandeira,\n",
+          "    t.descricao"
+        ],
+        "usage_guidance": [
+          "This example exercises the group_by_all_projected_keys archetype by counting payment arrangements grouped by two dimension columns (bandeira and descricao). All non-aggregated SELECT columns appear in GROUP BY. The query uses only the allowed table and columns, applies the correct fully-qualified identifier, and addresses a distinct business question (arrangement count per brand+description) not covered by existing examples."
+        ]
+      },
+      {
+        "id": "01f1764744fb153fb2d4a300e4df1dda",
+        "question": [
+          "Quais são os 10 arranjos de pagamento com maior valor total de recebíveis registrados?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    f.arranjo,\n",
+          "    SUM(f.valor) AS valor_total\n",
+          "FROM dev_recebiveis.diamond.fato_recebiveis f\n",
+          "GROUP BY f.arranjo\n",
+          "ORDER BY valor_total DESC\n",
+          "LIMIT 10"
+        ],
+        "usage_guidance": [
+          "This top-N query aggregates total receivables value (valor) by payment arrangement (arranjo), ordered descending and limited to 10 rows. It exercises the top_n_by_metric archetype using only allowed identifiers and columns, and does not duplicate any existing question's intent (existing questions cover volume by bandeira, cedente rankings, and cumulative totals by arranjo over time — not a simple top-N by arranjo on total value)."
+        ]
+      },
+      {
+        "id": "01f1764744fb156cbecc85059ff025f1",
+        "question": [
+          "Qual a proporção de cedentes com CNPJ preenchido versus sem CNPJ cadastrado, por UF?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.uf,\n",
+          "    COUNT(t.cedente_id) AS total_cedentes,\n",
+          "    SUM(CASE WHEN t.cnpj IS NOT NULL AND t.cnpj <> '' THEN 1 ELSE 0 END) AS cedentes_com_cnpj,\n",
+          "    SUM(CASE WHEN t.cnpj IS NULL OR t.cnpj = '' THEN 1 ELSE 0 END) AS cedentes_sem_cnpj,\n",
+          "    ROUND(\n",
+          "        100.0 * SUM(CASE WHEN t.cnpj IS NOT NULL AND t.cnpj <> '' THEN 1 ELSE 0 END)\n",
+          "        / NULLIF(COUNT(t.cedente_id), 0),\n",
+          "        2\n",
+          "    ) AS pct_com_cnpj\n",
+          "FROM dev_recebiveis.diamond.dim_cedente t\n",
+          "GROUP BY t.uf\n",
+          "ORDER BY total_cedentes DESC"
+        ],
+        "usage_guidance": [
+          "This example exercises the ratio_by_dimension archetype by computing the share of assignors (cedentes) with a filled CNPJ versus those without, grouped by state (UF). It uses CASE+SUM/COUNT to produce a ratio metric, covers the prioritized columns (cedente_id, cnpj, uf), references only the allowed table identifier, and does not duplicate any existing question's intent."
+        ]
+      },
+      {
+        "id": "01f1764744fb15998e2186c6d8917e27",
+        "question": [
+          "Quantos cedentes distintos registraram recebíveis para cada arranjo de pagamento?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    f.arranjo,\n",
+          "    COUNT(DISTINCT f.cedente_id) AS total_cedentes_distintos\n",
+          "FROM dev_recebiveis.diamond.fato_recebiveis f\n",
+          "GROUP BY f.arranjo\n",
+          "ORDER BY total_cedentes_distintos DESC"
+        ],
+        "usage_guidance": [
+          "This example exercises the distinct_count_by_dim archetype by counting distinct cedente_id values grouped by the arranjo (payment arrangement) categorical dimension. It uses only allowlisted columns and the fully qualified table identifier, avoids duplicating any existing question intent, and introduces no invented values or columns."
+        ]
+      },
+      {
+        "id": "01f1764744fb15e69b492199e9658ae7",
+        "question": [
+          "Quais descrições de arranjo de pagamento estão associadas a cada bandeira, agrupadas por bandeira?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.bandeira,\n",
+          "    t.descricao,\n",
+          "    COUNT(t.arranjo) AS quantidade_arranjos\n",
+          "FROM dev_recebiveis.diamond.dim_arranjo t\n",
+          "WHERE t.bandeira IS NOT NULL\n",
+          "GROUP BY t.bandeira, t.descricao\n",
+          "ORDER BY t.bandeira, t.descricao"
+        ],
+        "usage_guidance": [
+          "This example exercises SELECT, WHERE, and GROUP_BY on dim_arranjo using the prioritized columns (arranjo, bandeira, descricao). It asks which payment descriptions are linked to each brand — a natural business question not duplicated by existing examples. The archetype shape (aggregate within a filter + group) is satisfied by counting arrangements per brand/description combination, with a IS NOT NULL guard on bandeira as a safe filter that avoids inventing literal values."
+        ]
+      },
+      {
+        "id": "01f1764744fb161982bf38fec487a42e",
+        "question": [
+          "Quantos cedentes estão cadastrados por estado (UF) e qual é o número de CNPJs distintos para cada combinação de UF e nome do cedente?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.uf,\n",
+          "    t.nome,\n",
+          "    COUNT(t.cedente_id) AS total_cedentes,\n",
+          "    COUNT(DISTINCT t.cnpj) AS total_cnpjs_distintos\n",
+          "FROM dev_recebiveis.diamond.dim_cedente t\n",
+          "GROUP BY\n",
+          "    t.uf,\n",
+          "    t.nome"
+        ],
+        "usage_guidance": [
+          "This example exercises the group_by_all_projected_keys archetype by grouping on two dimension columns (uf and nome) and computing two aggregate measures (count of cedente_id and count of distinct cnpj). All non-aggregated SELECT columns are enumerated in GROUP BY. The query uses only the allowed table and columns, applies no invented filter values, and covers a business question not duplicated by existing examples."
+        ]
+      },
+      {
+        "id": "01f1764744fb164a89241caf5e2a4e19",
+        "question": [
+          "Como o valor total de recebíveis por status se compara entre o mês atual e o mês anterior?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    f.status,\n",
+          "    SUM(CASE WHEN DATE_TRUNC('month', f.data) = DATE_TRUNC('month', CURRENT_DATE) THEN f.valor ELSE 0 END) AS valor_mes_atual,\n",
+          "    SUM(CASE WHEN DATE_TRUNC('month', f.data) = DATE_TRUNC('month', ADD_MONTHS(CURRENT_DATE, -1)) THEN f.valor ELSE 0 END) AS valor_mes_anterior\n",
+          "FROM dev_recebiveis.diamond.fato_recebiveis f\n",
+          "WHERE f.data >= DATE_TRUNC('month', ADD_MONTHS(CURRENT_DATE, -1))\n",
+          "  AND f.data < DATE_TRUNC('month', ADD_MONTHS(CURRENT_DATE, 1))\n",
+          "GROUP BY f.status\n",
+          "ORDER BY valor_mes_atual DESC"
+        ],
+        "usage_guidance": [
+          "This example covers the period_over_period archetype by comparing total receivable value (valor) grouped by status across the current month and the previous month, using DATE_TRUNC for clean time windows. It uses only allowed columns (data, valor, status) from the qualified table identifier, avoids duplicating existing question intents, and produces a business-meaningful month-over-month comparison."
+        ]
+      },
+      {
+        "id": "01f1764744fb167dbee06cefeb3c885e",
+        "question": [
+          "Quais bandeiras possuem o maior número de arranjos de pagamento cadastrados, ordenadas do maior para o menor?"
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.bandeira,\n",
+          "    COUNT(t.arranjo) AS quantidade_arranjos\n",
+          "FROM dev_recebiveis.diamond.dim_arranjo t\n",
+          "GROUP BY t.bandeira\n",
+          "ORDER BY quantidade_arranjos DESC"
+        ],
+        "usage_guidance": [
+          "This query aggregates the count of payment arrangement codes (arranjo) by brand (bandeira) and orders the result descending, matching the ordered_list_by_metric archetype. It uses only the allowed table and columns, applies proper three-part identifier qualification, and addresses a distinct intent (ranking brands by number of arrangements) not covered by existing questions."
+        ]
+      },
+      {
+        "id": "01f1764744fb16aeaeb2954c31849e29",
+        "question": [
+          "Mostre o total acumulado de cedentes cadastrados ao longo dos IDs, ordenado pelo ID do cedente."
+        ],
+        "sql": [
+          "SELECT\n",
+          "    t.cedente_id,\n",
+          "    t.cnpj,\n",
+          "    t.nome,\n",
+          "    t.uf,\n",
+          "    COUNT(*) OVER (ORDER BY t.cedente_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS total_acumulado_cedentes\n",
+          "FROM dev_recebiveis.diamond.dim_cedente t\n",
+          "ORDER BY t.cedente_id"
+        ],
+        "usage_guidance": [
+          "This example exercises the running_total archetype using a COUNT window function ordered by cedente_id, covering all four prioritized columns from dim_cedente. It does not duplicate any existing question's intent (cumulative count of assignors by ID is not covered), uses only allowlisted identifiers with a properly declared alias, and avoids invented filter values."
+        ]
+      },
+      {
+        "id": "01f1764744fb16e8bb41db2cc6278f23",
+        "question": [
+          "Para cada arranjo de pagamento, quais são os 3 cedentes com maior valor total de recebíveis registrados?"
+        ],
+        "sql": [
+          "WITH totais AS (\n",
+          "    SELECT\n",
+          "        f.arranjo,\n",
+          "        f.cedente_id,\n",
+          "        SUM(f.valor) AS valor_total\n",
+          "    FROM dev_recebiveis.diamond.fato_recebiveis f\n",
+          "    GROUP BY f.arranjo, f.cedente_id\n",
+          "),\n",
+          "ranqueados AS (\n",
+          "    SELECT\n",
+          "        t.arranjo,\n",
+          "        t.cedente_id,\n",
+          "        t.valor_total,\n",
+          "        RANK() OVER (PARTITION BY t.arranjo ORDER BY t.valor_total DESC) AS ranking\n",
+          "    FROM totais t\n",
+          ")\n",
+          "SELECT\n",
+          "    r.arranjo,\n",
+          "    r.cedente_id,\n",
+          "    r.valor_total,\n",
+          "    r.ranking\n",
+          "FROM ranqueados r\n",
+          "WHERE r.ranking <= 3\n",
+          "ORDER BY r.arranjo, r.ranking"
+        ],
+        "usage_guidance": [
+          "This example exercises the rank_within_group archetype by partitioning receivables by payment arrangement (arranjo) and ranking assignors (cedente_id) by their total value (valor) using RANK() OVER (PARTITION BY ... ORDER BY ...). It uses only allowed columns and the exact table identifier, avoids duplicating existing question intents, and produces a clean business question about top cedentes per arranjo."
+        ]
       }
     ],
     "join_specs": [
@@ -173,6 +615,469 @@
         ],
         "instruction": [
           "Use para trazer descrição e bandeira do arranjo de pagamento."
+        ]
+      }
+    ],
+    "sql_snippets": {
+      "filters": [
+        {
+          "id": "01f1764580051cffadee59603b3a5893",
+          "sql": [
+            "`dev_recebiveis`.`diamond`.`fato_recebiveis`.`status` = 'REGISTRADO'"
+          ],
+          "display_name": "RECEBIVEIS Filtro Status Registrado",
+          "instruction": [
+            "Filtra fato_recebiveis para recebíveis com status REGISTRADO; aplicar por padrão quando o usuário mencionar recebíveis 'registrados' sem indicar outro status."
+          ],
+          "synonyms": [
+            "registrados",
+            "recebíveis registrados"
+          ]
+        },
+        {
+          "id": "01f1764580051d05be0ec82c19af9308",
+          "sql": [
+            "`dev_recebiveis`.`diamond`.`fato_recebiveis`.`data` = current_date() - 1"
+          ],
+          "display_name": "RECEBIVEIS Filtro Ontem",
+          "instruction": [
+            "Filtra fato_recebiveis para registros com data igual a ontem (current_date() - 1); usar quando o usuário mencionar 'ontem'."
+          ],
+          "synonyms": [
+            "ontem",
+            "dia anterior"
+          ]
+        },
+        {
+          "id": "01f1764580051d0a8f30bc48325ff1c7",
+          "sql": [
+            "`dev_recebiveis`.`diamond`.`fato_recebiveis`.`data` >= date_trunc('MONTH', current_date())"
+          ],
+          "display_name": "RECEBIVEIS Filtro Mês Atual",
+          "instruction": [
+            "Filtra fato_recebiveis para registros a partir do início do mês corrente; usar quando o usuário mencionar 'mês atual'."
+          ],
+          "synonyms": [
+            "mês atual",
+            "mês corrente",
+            "este mês"
+          ]
+        },
+        {
+          "id": "01f17647601d15e9ba8ba4be57809406",
+          "sql": [
+            "dev_recebiveis.diamond.fato_recebiveis.status = 'REGISTRADO'"
+          ],
+          "display_name": "Receivables Registered Status Filter (fato_recebiveis)",
+          "instruction": [
+            "Apply this filter to restrict fato_recebiveis results to records with status 'REGISTRADO', using the fully qualified column reference to avoid ambiguity with other tables in the space."
+          ],
+          "synonyms": [
+            "registered receivables",
+            "status registrado",
+            "active registrations"
+          ]
+        }
+      ],
+      "measures": [
+        {
+          "id": "01f1764580051cf09d5ba24790371cc2",
+          "alias": "volume_total_brl",
+          "sql": [
+            "SUM(`dev_recebiveis`.`diamond`.`fato_recebiveis`.`valor`)"
+          ],
+          "display_name": "RECEBIVEIS Volume Total (BRL)",
+          "instruction": [
+            "Soma o valor total dos recebíveis em Reais (BRL) na tabela fato_recebiveis; use como 'volume' ou 'valor total' nas respostas."
+          ],
+          "synonyms": [
+            "volume",
+            "valor total",
+            "total de recebíveis"
+          ]
+        },
+        {
+          "id": "01f176475dab1a0bb92f20cec219e49e",
+          "alias": "total_receivables_value",
+          "sql": [
+            "SUM(DEV_RECEBIVEIS.DIAMOND.FATO_RECEBIVEIS.VALOR)"
+          ],
+          "display_name": "Receivables Total Value (fato_recebiveis)",
+          "instruction": [
+            "Use this measure to compute the total monetary value of receivables from the fato_recebiveis fact table when a fully qualified reference is required."
+          ],
+          "synonyms": [
+            "total receivables",
+            "sum of receivables",
+            "receivables amount"
+          ]
+        },
+        {
+          "id": "01f176475f2c1dd49abe51a178668aa3",
+          "alias": "receivables_count",
+          "sql": [
+            "COUNT(*)"
+          ],
+          "display_name": "Receivables Record Count",
+          "instruction": [
+            "Use this measure to count the total number of rows in the fato_recebiveis fact table, representing the volume of individual receivable entries."
+          ],
+          "synonyms": [
+            "number of receivables",
+            "receivables count",
+            "total records"
+          ]
+        }
+      ]
+    }
+  },
+  "benchmarks": {
+    "questions": [
+      {
+        "id": "eacbe303e06541a29786072398b6e6d5",
+        "question": [
+          "Quais os 5 cedentes com maior número de recebíveis cancelados?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.nome, COUNT(*) AS quantidade FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.status = 'CANCELADO' GROUP BY dc.nome ORDER BY quantidade DESC LIMIT 5"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "d8a4519fb17a48ac83c6d91d8dce9dfe",
+        "question": [
+          "Qual o volume de recebíveis cancelados por estado (UF)?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.uf, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.status = 'CANCELADO' GROUP BY dc.uf ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "d74644fd4b564b4ca4ddec973cc93c4a",
+        "question": [
+          "Qual a participação percentual de cada status no volume total de recebíveis?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT status, SUM(valor) AS volume_total, ROUND(100.0 * SUM(valor) / SUM(SUM(valor)) OVER (), 2) AS percentual FROM dev_recebiveis.diamond.fato_recebiveis GROUP BY status ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c543d35bf63b42ba98f377a940da1a7f",
+        "question": [
+          "Qual o volume total de recebíveis com status REGISTRADO por estado (UF)?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.uf, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.status = 'REGISTRADO' GROUP BY dc.uf ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "c0c9e01b33e343c2b831a002cae0f1eb",
+        "question": [
+          "Quais são os cedentes cadastrados no estado do Rio de Janeiro (RJ)?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT cedente_id, nome, cnpj FROM dev_recebiveis.diamond.dim_cedente WHERE uf = 'RJ' ORDER BY nome"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "bfa832a5412c433daae276b26446fe26",
+        "question": [
+          "Qual o volume de recebíveis onerados por arranjo de pagamento?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT arranjo, SUM(valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis WHERE status = 'ONERADO' GROUP BY arranjo ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "a768da8158ff491194a55e90ac2d9593",
+        "question": [
+          "Qual o volume de recebíveis registrados por UF e bandeira?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.uf, da.bandeira, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id JOIN dev_recebiveis.diamond.dim_arranjo da ON fr.arranjo = da.arranjo WHERE fr.status = 'REGISTRADO' GROUP BY dc.uf, da.bandeira ORDER BY dc.uf, volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "99e2e352ed1540f19825f9158b30c319",
+        "question": [
+          "Quantos recebíveis registrados existem por arranjo de pagamento?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT arranjo, COUNT(*) AS quantidade FROM dev_recebiveis.diamond.fato_recebiveis WHERE status = 'REGISTRADO' GROUP BY arranjo ORDER BY quantidade DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "963a900d67b042289d46fc8b22dd5321",
+        "question": [
+          "Qual o ranking dos estados por volume de recebíveis liquidados?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.uf, SUM(fr.valor) AS volume_total, RANK() OVER (ORDER BY SUM(fr.valor) DESC) AS ranking FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.status = 'LIQUIDADO' GROUP BY dc.uf ORDER BY ranking"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "8a48843c45d74e73bc48092f70998cd4",
+        "question": [
+          "Qual o ticket médio de recebíveis registrados por bandeira?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT da.bandeira, AVG(fr.valor) AS ticket_medio, COUNT(*) AS quantidade FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_arranjo da ON fr.arranjo = da.arranjo WHERE fr.status = 'REGISTRADO' GROUP BY da.bandeira ORDER BY ticket_medio DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "79377e7589b44172ad3855297d42e117",
+        "question": [
+          "Qual o volume de recebíveis registrados no mês atual por bandeira?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT da.bandeira, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_arranjo da ON fr.arranjo = da.arranjo WHERE fr.status = 'REGISTRADO' AND fr.data >= DATE_TRUNC('MONTH', (SELECT MAX(data) FROM dev_recebiveis.diamond.fato_recebiveis)) GROUP BY da.bandeira ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "74299515f040405f924b344c0af56652",
+        "question": [
+          "Qual o volume total de recebíveis liquidados por mês?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT DATE_TRUNC('MONTH', data) AS mes, SUM(valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis WHERE status = 'LIQUIDADO' GROUP BY DATE_TRUNC('MONTH', data) ORDER BY mes"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "72df6f77d8b7465f81d388e006f9da3e",
+        "question": [
+          "Qual a evolução mensal do volume de recebíveis registrados ao longo do período disponível?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT DATE_TRUNC('MONTH', data) AS mes, SUM(valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis WHERE status = 'REGISTRADO' GROUP BY DATE_TRUNC('MONTH', data) ORDER BY mes"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "6d3694ebdc334c01be44073b25ccf2dd",
+        "question": [
+          "Quais cedentes do estado de SP possuem recebíveis registrados?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT DISTINCT dc.cedente_id, dc.nome, dc.cnpj FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE dc.uf = 'SP' AND fr.status = 'REGISTRADO' ORDER BY dc.nome"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "5b67e9f9bc27461cb6ee36c4a2324807",
+        "question": [
+          "Qual o volume total de recebíveis registrados por cedente no estado de MG?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.nome, dc.cnpj, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE dc.uf = 'MG' AND fr.status = 'REGISTRADO' GROUP BY dc.nome, dc.cnpj ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "4a3d81b05aeb4602a363d3004a8ecc14",
+        "question": [
+          "Qual o valor máximo e mínimo de recebíveis registrados por bandeira?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT da.bandeira, MAX(fr.valor) AS valor_maximo, MIN(fr.valor) AS valor_minimo FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_arranjo da ON fr.arranjo = da.arranjo WHERE fr.status = 'REGISTRADO' GROUP BY da.bandeira ORDER BY da.bandeira"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "43d6372b5fcb4dafb9d28f4335a0a34d",
+        "question": [
+          "Quais os 5 cedentes com maior volume de recebíveis no ano corrente, e de qual UF?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT c.nome, c.uf, SUM(f.valor) AS volume_total\n",
+              "FROM dev_recebiveis.diamond.fato_recebiveis f\n",
+              "JOIN dev_recebiveis.diamond.dim_cedente c ON f.cedente_id = c.cedente_id\n",
+              "WHERE YEAR(f.data) = YEAR(CURRENT_DATE())\n",
+              "GROUP BY c.nome, c.uf\n",
+              "ORDER BY volume_total DESC\n",
+              "LIMIT 5\n"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "3ab422fd7e524034950c6c47779025f2",
+        "question": [
+          "Qual o volume de recebíveis registrados para Mastercard Crédito (MCD) por cedente?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.nome, dc.cnpj, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.arranjo = 'MCD' AND fr.status = 'REGISTRADO' GROUP BY dc.nome, dc.cnpj ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "2b44a691c11e4519a7644245b0201176",
+        "question": [
+          "Qual o volume de recebíveis registrados por arranjo no mês atual comparado ao mês anterior?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT arranjo, SUM(CASE WHEN data >= DATE_TRUNC('MONTH', CURRENT_DATE()) THEN valor ELSE 0 END) AS volume_mes_atual, SUM(CASE WHEN data >= DATE_TRUNC('MONTH', CURRENT_DATE()) - INTERVAL 1 MONTH AND data < DATE_TRUNC('MONTH', CURRENT_DATE()) THEN valor ELSE 0 END) AS volume_mes_anterior FROM dev_recebiveis.diamond.fato_recebiveis WHERE status = 'REGISTRADO' AND data >= DATE_TRUNC('MONTH', CURRENT_DATE()) - INTERVAL 1 MONTH GROUP BY arranjo ORDER BY arranjo"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "135c1b3178024c52bab9bcfc77a6364a",
+        "question": [
+          "Qual o volume total de recebíveis por bandeira nos últimos 30 dias?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT a.bandeira, SUM(f.valor) AS volume_total\n",
+              "FROM dev_recebiveis.diamond.fato_recebiveis f\n",
+              "JOIN dev_recebiveis.diamond.dim_arranjo a ON f.arranjo = a.arranjo\n",
+              "WHERE f.data >= DATE_SUB(CURRENT_DATE(), 30)\n",
+              "GROUP BY a.bandeira\n",
+              "ORDER BY volume_total DESC\n"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "0ffc16b5fe9e43748e1d3049b5e761ba",
+        "question": [
+          "Quais cedentes possuem volume de recebíveis registrados acima de R$ 500.000?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.nome, dc.cnpj, dc.uf, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.status = 'REGISTRADO' GROUP BY dc.nome, dc.cnpj, dc.uf HAVING SUM(fr.valor) > 500000 ORDER BY volume_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "0eb20c36b0a24bf2953450076139b84e",
+        "question": [
+          "Quais cedentes possuem recebíveis em todos os 4 status (REGISTRADO, LIQUIDADO, ONERADO, CANCELADO)?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT cedente_id FROM dev_recebiveis.diamond.fato_recebiveis GROUP BY cedente_id HAVING COUNT(DISTINCT status) = 4 ORDER BY cedente_id"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "06dcd98111fe4f16bfe6e258ba919a85",
+        "question": [
+          "Quais os 10 cedentes com maior volume de recebíveis registrados?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.nome, dc.cnpj, SUM(fr.valor) AS volume_total FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.status = 'REGISTRADO' GROUP BY dc.nome, dc.cnpj ORDER BY volume_total DESC LIMIT 10"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "028cb3034ff14c7092c939d9ad1b6820",
+        "question": [
+          "Qual o número de cedentes distintos com recebíveis registrados por UF?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT dc.uf, COUNT(DISTINCT fr.cedente_id) AS qtd_cedentes FROM dev_recebiveis.diamond.fato_recebiveis fr JOIN dev_recebiveis.diamond.dim_cedente dc ON fr.cedente_id = dc.cedente_id WHERE fr.status = 'REGISTRADO' GROUP BY dc.uf ORDER BY qtd_cedentes DESC"
+            ]
+          }
         ]
       }
     ]
