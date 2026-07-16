@@ -38,21 +38,27 @@ jobs:
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_PROD_SP_CLIENT_ID }}
       DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_PROD_SP_SECRET }}
     steps:
-      # 1. The app repo = the engine + all pipeline logic (render.sh, check_grants.py, tests,
-      #    databricks.yml). Checked out at the workspace root so every script runs from a dir that
-      #    looks exactly like the pre-split single repo.
-      - name: Checkout app repo (pipeline logic)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.APP_REPO }}
-          path: app
-      # 2. The content repo = the PR under test. fetch-depth: 0 so we can diff against the PR base
+      # 1. The content repo = the PR under test. fetch-depth: 0 so we can diff against the PR base
       #    to find which spaces changed (scope the gates to them).
       - name: Checkout content (this PR)
         uses: actions/checkout@v4
         with:
           path: content
           fetch-depth: 0
+      - name: Resolve immutable engine revision
+        id: engine
+        run: |
+          sha="$(tr -d '[:space:]' < content/engine.lock)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::engine.lock must contain one full commit SHA"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Immutable revision pair::content=${{ github.event.pull_request.head.sha }} engine=$sha"
+      # 2. The app repo = engine + pipeline logic at the exact reviewed lock.
+      - name: Checkout app repo (locked pipeline logic)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_REPO }}
+          ref: ${{ steps.engine.outputs.sha }}
+          path: app
       # 3. Overlay this PR's content into the app-repo working tree, so render.sh finds src/genie/*
       #    where it expects. --delete so a removed content file doesn't linger from the app checkout.
       - name: Overlay content src/ into the app working tree
@@ -112,16 +118,24 @@ jobs:
       # match the app's APP_SPACE_SLUGS baked in build_promote_app.sh).
       APP_SPACE_SLUGS: '{"01f16e8322661161a83f7d1f2a1bec14": "receivables"}'
     steps:
-      - name: Checkout app repo (pipeline logic)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.APP_REPO }}
-          path: app
       - name: Checkout content (this PR)
         uses: actions/checkout@v4
         with:
           path: content
           fetch-depth: 0
+      - name: Resolve immutable engine revision
+        id: engine
+        run: |
+          sha="$(tr -d '[:space:]' < content/engine.lock)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::engine.lock must contain one full commit SHA"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Immutable revision pair::content=${{ github.event.pull_request.head.sha }} engine=$sha"
+      - name: Checkout app repo (locked pipeline logic)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_REPO }}
+          ref: ${{ steps.engine.outputs.sha }}
+          path: app
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
       - name: Compute changed space slugs
