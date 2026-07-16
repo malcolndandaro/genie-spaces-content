@@ -2,12 +2,16 @@ name: pr-checks
 
 # S9b (app-ux-overhaul repo split): this workflow lives in the CONTENT repo
 # (genie-spaces-content) because GitHub Actions only fires on events in the repo that CONTAINS
-# the workflow file (RS2). But the pipeline LOGIC (render.sh, check_grants.py, databricks.yml,
-# tests) lives in the app repo (genie-promote-cicd) and is NOT duplicated here — instead each job
-# checks out the app repo and OVERLAYS this repo's promotable content (src/) into it, so the
-# unchanged engine scripts run exactly as they did pre-split (they're coupled to a working dir
-# that has engine + content together). Byte-identical deterministic gate to the app repo's old
-# pr-checks.yml, just with a checkout+overlay preamble.
+# the workflow file (RS2). But the pipeline LOGIC (render.sh, check_grants.py, check_eval*.py,
+# databricks.yml, tests) lives in the app repo (genie-promote-cicd) and is NOT duplicated here —
+# each job checks out the app repo and OVERLAYS this repo's promotable content (src/) into it, so
+# the unchanged engine scripts run exactly as they did pre-split.
+#
+# SCOPE (found live 2026-07-16): the governance gates (GRANT-01, EVAL-01, eval-run) check ONLY the
+# spaces this PR actually changes — computed from `git diff` against the PR base. Otherwise a PR
+# touching only the workflow/an unrelated space would be blocked by LEGACY content already on main
+# (e.g. a space promoted before a gate existed). A PR that changes no serialized_space file (docs,
+# workflow) runs the gates over an empty set — they pass trivially.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -42,15 +46,26 @@ jobs:
         with:
           repository: ${{ env.APP_REPO }}
           path: app
-      # 2. The content repo = the PR under test (this repo's promotable src/).
+      # 2. The content repo = the PR under test. fetch-depth: 0 so we can diff against the PR base
+      #    to find which spaces changed (scope the gates to them).
       - name: Checkout content (this PR)
         uses: actions/checkout@v4
         with:
           path: content
+          fetch-depth: 0
       # 3. Overlay this PR's content into the app-repo working tree, so render.sh finds src/genie/*
       #    where it expects. --delete so a removed content file doesn't linger from the app checkout.
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
+      # 4. The slugs whose serialized_space changed in THIS PR — the gates run only on these.
+      - name: Compute changed space slugs
+        id: changed
+        run: |
+          slugs="$(git -C content diff --name-only '${{ github.event.pull_request.base.sha }}' HEAD \
+                    -- 'src/genie/*.serialized_space.json' \
+                    | sed 's#.*/##; s#\.serialized_space\.json$##' | sort -u | tr '\n' ' ')"
+          echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
+          echo "Changed space slugs: ${slugs:-(none)}"
       - uses: databricks/setup-cli@main
         with:
           version: 1.4.0
@@ -68,30 +83,21 @@ jobs:
       - name: Validate bundle (prod target)
         working-directory: app
         run: databricks bundle validate -t prod --var "warehouse_id=${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}"
-      - name: GRANT-01 — every declared principal can SELECT the prod tables (governance gate)
+      - name: GRANT-01 + EVAL-01 (governance gates, only the spaces this PR changed)
         working-directory: app
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
-          for f in build/genie/*.serialized_space.json; do
-            [ -f "$f" ] || continue
-            slug="$(basename "$f" .serialized_space.json)"
+          for slug in ${{ steps.changed.outputs.slugs }}; do
+            f="build/genie/${slug}.serialized_space.json"
+            [ -f "$f" ] || { echo "skip ${slug}: no rendered artifact"; continue; }
             python3 scripts/check_grants.py "$f" "${{ vars.DATABRICKS_CONSUMER_GROUP || 'account users' }}" "build/genie/${slug}.access.json"
-          done
-      - name: EVAL-01 — the space carries enough benchmark questions (quality gate)
-        working-directory: app
-        # Deterministic COUNT gate (offline — reads the rendered JSON, no workspace creds): fails the
-        # PR when a space has fewer than the required benchmark questions, so branch protection blocks
-        # the merge. This is the always-on FLOOR; the eval-RUN PASS-RATE gate is the separate job below.
-        run: |
-          for f in build/genie/*.serialized_space.json; do
-            [ -f "$f" ] || continue
             python3 scripts/check_eval.py "$f"
           done
 
   # The eval-run PASS-RATE gate (blocks the merge on a below-threshold score). Its own job because it
   # authenticates to the DEV workspace (the live space with the benchmarks) as the dev-reader SP —
   # distinct auth from the prod-SP `validate` job above. Both jobs are required checks under branch
-  # protection, so either failing blocks the merge. Same checkout+overlay+render preamble.
+  # protection, so either failing blocks the merge. Only the spaces this PR changed are eval-run.
   eval-run:
     name: eval-run pass-rate (dev)
     runs-on: self-hosted   # workspace IP-ACL blocks hosted runners
@@ -115,8 +121,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: content
+          fetch-depth: 0
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
+      - name: Compute changed space slugs
+        id: changed
+        run: |
+          slugs="$(git -C content diff --name-only '${{ github.event.pull_request.base.sha }}' HEAD \
+                    -- 'src/genie/*.serialized_space.json' \
+                    | sed 's#.*/##; s#\.serialized_space\.json$##' | sort -u | tr '\n' ' ')"
+          echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
+          echo "Changed space slugs: ${slugs:-(none)}"
       - uses: databricks/setup-cli@main
         with:
           version: 1.4.0
@@ -127,7 +142,8 @@ jobs:
         working-directory: app
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
-          for f in build/genie/*.serialized_space.json; do
-            [ -f "$f" ] || continue
+          for slug in ${{ steps.changed.outputs.slugs }}; do
+            f="build/genie/${slug}.serialized_space.json"
+            [ -f "$f" ] || { echo "skip ${slug}: no rendered artifact"; continue; }
             python3 scripts/check_eval_run.py "$f"
           done
