@@ -176,5 +176,6 @@
         ]
       }
     ]
-  }
+  },
+  "_test_touch": "scoped-gate-test"
 }
