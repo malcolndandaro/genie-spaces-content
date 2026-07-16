@@ -77,3 +77,14 @@ jobs:
             slug="$(basename "$f" .serialized_space.json)"
             python3 scripts/check_grants.py "$f" "${{ vars.DATABRICKS_CONSUMER_GROUP || 'account users' }}" "build/genie/${slug}.access.json"
           done
+      - name: EVAL-01 — the space carries enough benchmark questions (quality gate)
+        working-directory: app
+        # Deterministic COUNT gate (offline — reads the rendered JSON, no workspace creds): fails the
+        # PR when a space has fewer than the required benchmark questions, so branch protection blocks
+        # the merge. The full eval-RUN pass-rate can't run pre-merge (no live prod space + no dev creds
+        # in CI), so it stays the app's own gate; this count is the merge-blocking floor.
+        run: |
+          for f in build/genie/*.serialized_space.json; do
+            [ -f "$f" ] || continue
+            python3 scripts/check_eval.py "$f"
+          done
