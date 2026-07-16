@@ -7,7 +7,7 @@ name: pr-checks
 # each job checks out the app repo and OVERLAYS this repo's promotable content (src/) into it, so
 # the unchanged engine scripts run exactly as they did pre-split.
 #
-# SCOPE (found live 2026-07-16): the governance gates (GRANT-01, EVAL-01, eval-run) check ONLY the
+# SCOPE (found live 2026-07-16): the governance gates (AUDIENCE-01, EVAL-01, eval-run) check ONLY the
 # spaces this PR actually changes — computed from `git diff` against the PR base. Otherwise a PR
 # touching only the workflow/an unrelated space would be blocked by LEGACY content already on main
 # (e.g. a space promoted before a gate existed). A PR that changes no serialized_space file (docs,
@@ -51,7 +51,7 @@ jobs:
           sha="$(tr -d '[:space:]' < content/engine.lock)"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::engine.lock must contain one full commit SHA"; exit 1; }
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Immutable revision pair::content=${{ github.event.pull_request.head.sha }} engine=$sha"
+          echo "Resolved immutable engine revision: $sha"
       # 2. The app repo = engine + pipeline logic at the exact reviewed lock.
       - name: Checkout app repo (locked pipeline logic)
         uses: actions/checkout@v4
@@ -63,13 +63,18 @@ jobs:
       #    where it expects. --delete so a removed content file doesn't linger from the app checkout.
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
-      # 4. The slugs whose serialized_space changed in THIS PR — the gates run only on these.
+      - name: Report immutable content + engine revisions
+        id: revision
+        run: |
+          content_revision="$(python3 app/scripts/content_revision.py app)"
+          echo "content=$content_revision" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Immutable revision pair::content=$content_revision engine=${{ steps.engine.outputs.sha }}"
+      # 4. Any contract file can change behavior; map all of them back to the owning Space slug.
       - name: Compute changed space slugs
         id: changed
         run: |
           slugs="$(git -C content diff --name-only '${{ github.event.pull_request.base.sha }}' HEAD \
-                    -- 'src/genie/*.serialized_space.json' \
-                    | sed 's#.*/##; s#\.serialized_space\.json$##' | sort -u | tr '\n' ' ')"
+                    -- 'src/genie/*' | python3 app/scripts/changed_space_slugs.py)"
           echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
           echo "Changed space slugs: ${slugs:-(none)}"
       - uses: databricks/setup-cli@main
@@ -85,18 +90,20 @@ jobs:
         run: bash scripts/render.sh prod
       - name: Stub the app source dir (ADR-0006/A1 — promote_app now targets prod)
         working-directory: app
-        run: mkdir -p build/promote_app
+        run: |
+          mkdir -p build/promote_app
+          touch build/promote_app/validation.stub
       - name: Validate bundle (prod target)
         working-directory: app
-        run: databricks bundle validate -t prod --var "warehouse_id=${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}"
-      - name: GRANT-01 + EVAL-01 (governance gates, only the spaces this PR changed)
+        run: databricks bundle validate --strict -t prod --var "warehouse_id=${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}"
+      - name: AUDIENCE-01 + EVAL-01 (governance gates, only changed Spaces)
         working-directory: app
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
           for slug in ${{ steps.changed.outputs.slugs }}; do
             f="build/genie/${slug}.serialized_space.json"
             [ -f "$f" ] || { echo "skip ${slug}: no rendered artifact"; continue; }
-            python3 scripts/check_grants.py "$f" "${{ vars.DATABRICKS_CONSUMER_GROUP || 'account users' }}" "build/genie/${slug}.access.json"
+            python3 scripts/check_audience.py "$f" "build/genie/${slug}.audience.json"
             python3 scripts/check_eval.py "$f"
           done
 
@@ -129,7 +136,7 @@ jobs:
           sha="$(tr -d '[:space:]' < content/engine.lock)"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::engine.lock must contain one full commit SHA"; exit 1; }
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Immutable revision pair::content=${{ github.event.pull_request.head.sha }} engine=$sha"
+          echo "Resolved immutable engine revision: $sha"
       - name: Checkout app repo (locked pipeline logic)
         uses: actions/checkout@v4
         with:
@@ -138,12 +145,17 @@ jobs:
           path: app
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
+      - name: Report immutable content + engine revisions
+        id: revision
+        run: |
+          content_revision="$(python3 app/scripts/content_revision.py app)"
+          echo "content=$content_revision" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Immutable revision pair::content=$content_revision engine=${{ steps.engine.outputs.sha }}"
       - name: Compute changed space slugs
         id: changed
         run: |
           slugs="$(git -C content diff --name-only '${{ github.event.pull_request.base.sha }}' HEAD \
-                    -- 'src/genie/*.serialized_space.json' \
-                    | sed 's#.*/##; s#\.serialized_space\.json$##' | sort -u | tr '\n' ' ')"
+                    -- 'src/genie/*' | python3 app/scripts/changed_space_slugs.py)"
           echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
           echo "Changed space slugs: ${slugs:-(none)}"
       - uses: databricks/setup-cli@main

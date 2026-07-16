@@ -9,11 +9,9 @@
 # COMMAND ----------
 dbutils.widgets.text("catalog", "dev_recebiveis")
 dbutils.widgets.text("env", "dev")
-dbutils.widgets.text("consumer_group", "account users")
 catalog = dbutils.widgets.get("catalog")
 env = dbutils.widgets.get("env")
-consumer_group = dbutils.widgets.get("consumer_group")
-print(f"Seeding catalog={catalog} (env={env}) consumer_group={consumer_group}")
+print(f"Seeding catalog={catalog} (env={env})")
 
 # COMMAND ----------
 import datetime
@@ -36,14 +34,6 @@ for sch in ["raw", "trusted", "refined", "diamond"]:
 # tabelas recriadas do zero a cada run → idempotente e sem conflito de constraints
 for t in ["fato_recebiveis", "dim_cedente", "dim_arranjo"]:
     spark.sql(f"DROP TABLE IF EXISTS {catalog}.diamond.{t}")
-
-# COMMAND ----------
-# Grants centralizados no setup job (D10/ADR-0004). Idempotente. SELECT em schema
-# cascateia para as tabelas atuais e futuras da diamond.
-spark.sql(f"GRANT USE CATALOG ON CATALOG {catalog} TO `{consumer_group}`")
-spark.sql(f"GRANT USE SCHEMA ON SCHEMA {catalog}.diamond TO `{consumer_group}`")
-spark.sql(f"GRANT SELECT ON SCHEMA {catalog}.diamond TO `{consumer_group}`")
-print(f"Grants aplicados a `{consumer_group}` em {catalog}.diamond")
 
 # COMMAND ----------
 # Best-effort: isolar o catálogo a este workspace (ISOLATED + binding RW). Não-fatal:

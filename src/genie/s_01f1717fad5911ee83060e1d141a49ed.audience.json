@@ -1,0 +1,8 @@
+{
+  "principals": [
+    {
+      "principal": "malcoln.dandaro@databricks.com",
+      "is_group": false
+    }
+  ]
+}

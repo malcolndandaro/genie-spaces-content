@@ -58,7 +58,7 @@ jobs:
           sha="$(tr -d '[:space:]' < content/engine.lock)"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::engine.lock must contain one full commit SHA"; exit 1; }
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Immutable revision pair::content=${GITHUB_SHA} engine=$sha"
+          echo "Resolved immutable engine revision: $sha"
       - name: Checkout app repo (locked pipeline logic)
         uses: actions/checkout@v4
         with:
@@ -67,6 +67,12 @@ jobs:
           path: app
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
+      - name: Report immutable content + engine revisions
+        id: revision
+        run: |
+          content_revision="$(python3 app/scripts/content_revision.py app)"
+          echo "content=$content_revision" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Immutable revision pair::content=$content_revision engine=${{ steps.engine.outputs.sha }}"
       - uses: databricks/setup-cli@main
         with:
           version: 1.4.0
@@ -75,6 +81,7 @@ jobs:
         working-directory: app
         env:
           ENGINE_REVISION: ${{ steps.engine.outputs.sha }}
+          CONTENT_REVISION: ${{ steps.revision.outputs.content }}
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
           python3 scripts/deploy_attempt.py \
