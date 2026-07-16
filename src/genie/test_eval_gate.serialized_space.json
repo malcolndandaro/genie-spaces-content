@@ -1,0 +1,1 @@
+{"version":1,"data_sources":{"tables":[{"identifier":"dev_recebiveis.diamond.fato_recebiveis"}]},"instructions":{},"benchmarks":{"questions":[{"id":"only-one","question":"Só uma pergunta","answer":[{"format":"SQL","content":"SELECT 1"}]}]}}
