@@ -46,6 +46,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: content
+      - name: Checkout prior content for desired-set reconciliation
+        if: github.event.before != '0000000000000000000000000000000000000000'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.before }}
+          path: previous-content
       - name: Resolve immutable engine revision
         id: engine
         run: |
@@ -64,34 +70,13 @@ jobs:
       - uses: databricks/setup-cli@main
         with:
           version: 1.4.0
-      - name: Pre-render serialized_space (dev_->prod_) + allowlist check
+      - name: Safe staged deployment (preflight + forward-only reconciliation)
+        id: deployment
         working-directory: app
-        run: bash scripts/render.sh prod
-      - name: Assemble the app source (ADR-0006/A1 — promote_app now deploys to prod)
-        working-directory: app
-        run: bash scripts/build_promote_app.sh
-      - name: Deploy bundle to prod
-        working-directory: app
-        run: databricks bundle deploy -t prod --var "warehouse_id=${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}"
-      - name: Apply declared access (F2 — governed enforcement, prod SP, direct-to-principal)
-        working-directory: app
+        env:
+          ENGINE_REVISION: ${{ steps.engine.outputs.sha }}
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
-          for f in build/genie/*.serialized_space.json; do
-            [ -f "$f" ] || continue
-            slug="$(basename "$f" .serialized_space.json)"
-            [ -f "build/genie/${slug}.access.json" ] || continue   # nothing declared -> skip entirely
-            title="$(cat "build/genie/${slug}.title" 2>/dev/null || true)"
-            python3 scripts/apply_access.py "$f" "build/genie/${slug}.access.json" "$title"
-          done
-      - name: Make deployed spaces usable by the app (CAN_MANAGE -> app SP, idempotent)
-        working-directory: app
-        run: |
-          python3 -m pip install -q 'databricks-sdk>=0.111.0'
-          for f in build/genie/*.serialized_space.json; do
-            [ -f "$f" ] || continue
-            slug="$(basename "$f" .serialized_space.json)"
-            title="$(cat "build/genie/${slug}.title" 2>/dev/null || true)"
-            [ -n "$title" ] || { echo "no .title sidecar for ${slug}; cannot resolve space id" >&2; exit 1; }
-            python3 scripts/grant_app_sp_read.py "$title"
-          done
+          python3 scripts/deploy_attempt.py \
+            --warehouse-id "${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}" \
+            --previous-content-root "$GITHUB_WORKSPACE/previous-content"
