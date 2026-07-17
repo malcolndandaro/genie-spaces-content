@@ -1,8 +1,8 @@
 {
   "principals": [
     {
-      "principal": "users",
-      "is_group": true
+      "principal": "malcoln.dandaro@databricks.com",
+      "is_group": false
     }
   ]
 }
