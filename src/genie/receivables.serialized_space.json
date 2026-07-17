@@ -176,5 +176,37 @@
         ]
       }
     ]
+  },
+  "benchmarks": {
+    "questions": [
+      {
+        "id": "3c2d9e1a4f6b7c8d9012a3b4c5d6e7f8",
+        "question": [
+          "Quantos recebíveis existem na tabela de recebíveis?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT COUNT(*) AS total_recebiveis FROM dev_recebiveis.diamond.fato_recebiveis"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "4d3eaf2b5c7d8e9f0123b4c5d6e7f809",
+        "question": [
+          "Qual é o valor total dos recebíveis?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT SUM(valor) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }
