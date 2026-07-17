@@ -2,7 +2,7 @@ name: pr-checks
 
 # S9b (app-ux-overhaul repo split): this workflow lives in the CONTENT repo
 # (genie-spaces-content) because GitHub Actions only fires on events in the repo that CONTAINS
-# the workflow file (RS2). But the pipeline LOGIC (render.sh, check_grants.py, check_eval*.py,
+# the workflow file (RS2). But the pipeline LOGIC (render.sh, check_audience.py, check_eval*.py,
 # databricks.yml, tests) lives in the app repo (genie-promote-cicd) and is NOT duplicated here —
 # each job checks out the app repo and OVERLAYS this repo's promotable content (src/) into it, so
 # the unchanged engine scripts run exactly as they did pre-split.

@@ -2,10 +2,10 @@ name: deploy
 
 # S9b (app-ux-overhaul repo split): PR-merge -> prod promotion, running in the CONTENT repo
 # (genie-spaces-content) where the promotion PRs now merge. Same checkout+overlay preamble as
-# pr-checks.yml — the pipeline logic (render.sh, build_promote_app.sh, apply_access.py, the
+# pr-checks.yml — the pipeline logic (render.sh, build_promote_app.sh, deploy_attempt.py, the
 # bundle) lives in the app repo and is checked out here, then this repo's src/ is overlaid on top.
-# Behavior is byte-identical to the app repo's old deploy.yml (the prod Environment gate, the
-# per-space render, the governed apply_access + app-SP grant) — only the source of `src/` moved.
+# The gated shape remains: prod Environment approval, per-space render, idempotent deployment
+# attempts, and audience reconciliation. Only promotable content is owned by this repository.
 #
 # runs-on: self-hosted because both workspaces enforce IP access lists (see the app repo's
 # SETUP.md). A second cerc-mac runner is registered on THIS repo for that (S9b — personal account,
