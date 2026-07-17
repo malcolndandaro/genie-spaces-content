@@ -2,10 +2,10 @@ name: deploy
 
 # S9b (app-ux-overhaul repo split): PR-merge -> prod promotion, running in the CONTENT repo
 # (genie-spaces-content) where the promotion PRs now merge. Same checkout+overlay preamble as
-# pr-checks.yml — the pipeline logic (render.sh, build_promote_app.sh, apply_access.py, the
+# pr-checks.yml — the pipeline logic (render.sh, build_promote_app.sh, deploy_attempt.py, the
 # bundle) lives in the app repo and is checked out here, then this repo's src/ is overlaid on top.
-# Behavior is byte-identical to the app repo's old deploy.yml (the prod Environment gate, the
-# per-space render, the governed apply_access + app-SP grant) — only the source of `src/` moved.
+# The gated shape remains: prod Environment approval, per-space render, idempotent deployment
+# attempts, and audience reconciliation. Only promotable content is owned by this repository.
 #
 # runs-on: self-hosted because both workspaces enforce IP access lists (see the app repo's
 # SETUP.md). A second cerc-mac runner is registered on THIS repo for that (S9b — personal account,
@@ -42,48 +42,48 @@ jobs:
       BUNDLE_DEV_HOST: ${{ vars.DATABRICKS_DEV_HOST }}
       BUNDLE_DEV_WAREHOUSE_ID: ${{ vars.DATABRICKS_DEV_WAREHOUSE_ID }}
     steps:
-      - name: Checkout app repo (pipeline logic)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.APP_REPO }}
-          path: app
       - name: Checkout content (merged main)
         uses: actions/checkout@v4
         with:
           path: content
+      - name: Checkout prior content for desired-set reconciliation
+        if: github.event.before != '0000000000000000000000000000000000000000'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.before }}
+          path: previous-content
+      - name: Resolve immutable engine revision
+        id: engine
+        run: |
+          sha="$(tr -d '[:space:]' < content/engine.lock)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::engine.lock must contain one full commit SHA"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Resolved immutable engine revision: $sha"
+      - name: Checkout app repo (locked pipeline logic)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_REPO }}
+          ref: ${{ steps.engine.outputs.sha }}
+          path: app
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
+      - name: Report immutable content + engine revisions
+        id: revision
+        run: |
+          content_revision="$(python3 app/scripts/content_revision.py app)"
+          echo "content=$content_revision" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Immutable revision pair::content=$content_revision engine=${{ steps.engine.outputs.sha }}"
       - uses: databricks/setup-cli@main
         with:
           version: 1.4.0
-      - name: Pre-render serialized_space (dev_->prod_) + allowlist check
+      - name: Safe staged deployment (preflight + forward-only reconciliation)
+        id: deployment
         working-directory: app
-        run: bash scripts/render.sh prod
-      - name: Assemble the app source (ADR-0006/A1 — promote_app now deploys to prod)
-        working-directory: app
-        run: bash scripts/build_promote_app.sh
-      - name: Deploy bundle to prod
-        working-directory: app
-        run: databricks bundle deploy -t prod --var "warehouse_id=${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}"
-      - name: Apply declared access (F2 — governed enforcement, prod SP, direct-to-principal)
-        working-directory: app
+        env:
+          ENGINE_REVISION: ${{ steps.engine.outputs.sha }}
+          CONTENT_REVISION: ${{ steps.revision.outputs.content }}
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
-          for f in build/genie/*.serialized_space.json; do
-            [ -f "$f" ] || continue
-            slug="$(basename "$f" .serialized_space.json)"
-            [ -f "build/genie/${slug}.access.json" ] || continue   # nothing declared -> skip entirely
-            title="$(cat "build/genie/${slug}.title" 2>/dev/null || true)"
-            python3 scripts/apply_access.py "$f" "build/genie/${slug}.access.json" "$title"
-          done
-      - name: Make deployed spaces usable by the app (CAN_MANAGE -> app SP, idempotent)
-        working-directory: app
-        run: |
-          python3 -m pip install -q 'databricks-sdk>=0.111.0'
-          for f in build/genie/*.serialized_space.json; do
-            [ -f "$f" ] || continue
-            slug="$(basename "$f" .serialized_space.json)"
-            title="$(cat "build/genie/${slug}.title" 2>/dev/null || true)"
-            [ -n "$title" ] || { echo "no .title sidecar for ${slug}; cannot resolve space id" >&2; exit 1; }
-            python3 scripts/grant_app_sp_read.py "$title"
-          done
+          python3 scripts/deploy_attempt.py \
+            --warehouse-id "${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}" \
+            --previous-content-root "$GITHUB_WORKSPACE/previous-content"

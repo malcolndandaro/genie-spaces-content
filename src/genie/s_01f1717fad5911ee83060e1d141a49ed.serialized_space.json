@@ -87,65 +87,29 @@
   "benchmarks": {
     "questions": [
       {
-        "id": "01f1717ffb671d0b874c08d9bdc6946b",
+        "id": "1e14d42d4b3f0014d19104bdadbea9a8",
         "question": [
-          "Quais os 5 principais clientes em volume de antecipações este ano?"
+          "Quantos recebíveis existem na tabela de recebíveis?"
         ],
         "answer": [
           {
             "format": "SQL",
             "content": [
-              "WITH ranked_cedentes AS (\n",
-              "  SELECT\n",
-              "    c.cedente_id,\n",
-              "    c.nome,\n",
-              "    c.cnpj,\n",
-              "    SUM(f.valor) AS volume_antecipado,\n",
-              "    RANK() OVER (ORDER BY SUM(f.valor) DESC) AS rnk\n",
-              "  FROM\n",
-              "    `dev_recebiveis`.`diamond`.`fato_recebiveis` f\n",
-              "      JOIN `dev_recebiveis`.`diamond`.`dim_cedente` c\n",
-              "        ON f.cedente_id = c.cedente_id\n",
-              "  WHERE\n",
-              "    f.status = 'LIQUIDADO'\n",
-              "    AND YEAR(f.data) = YEAR(CURRENT_DATE())\n",
-              "  GROUP BY\n",
-              "    c.cedente_id,\n",
-              "    c.nome,\n",
-              "    c.cnpj\n",
-              ")\n",
-              "SELECT\n",
-              "  cedente_id,\n",
-              "  nome,\n",
-              "  cnpj,\n",
-              "  volume_antecipado\n",
-              "FROM\n",
-              "  ranked_cedentes\n",
-              "WHERE\n",
-              "  rnk <= 5\n",
-              "ORDER BY\n",
-              "  volume_antecipado DESC;"
+              "SELECT COUNT(*) AS total_recebiveis FROM dev_recebiveis.diamond.fato_recebiveis"
             ]
           }
         ]
       },
       {
-        "id": "01f1717fd9f71517829d361396e50d9f",
+        "id": "926d38e5103636b5264264f98823c822",
         "question": [
-          "Qual o volume de recebíveis antecipados nos últimos 3 meses?"
+          "Qual é o valor total dos recebíveis?"
         ],
         "answer": [
           {
             "format": "SQL",
             "content": [
-              "SELECT\n",
-              "  SUM(fato_recebiveis.valor) AS volume_antecipado\n",
-              "FROM\n",
-              "  dev_recebiveis.diamond.fato_recebiveis\n",
-              "WHERE\n",
-              "  fato_recebiveis.status = 'ONERADO'\n",
-              "  AND fato_recebiveis.data >= date_trunc('MONTH', dateadd(MONTH, -2, CURRENT_DATE))\n",
-              "  AND fato_recebiveis.data <= CURRENT_DATE;"
+              "SELECT SUM(valor) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis"
             ]
           }
         ]

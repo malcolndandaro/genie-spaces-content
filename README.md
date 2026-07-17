@@ -13,7 +13,7 @@ Steward approval gate.
 
 ```
 src/
-├── genie/        # per-space Genie Space definitions (serialized_space + .title + .access.json sidecars)
+├── genie/        # per-space definitions (serialized_space + .title + required .audience.json)
 ├── dashboards/   # AI/BI (Lakeview) dashboard JSON
 └── setup/        # synthetic seed data for the demo domain
 ```
