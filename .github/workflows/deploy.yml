@@ -65,6 +65,11 @@ jobs:
           repository: ${{ env.APP_REPO }}
           ref: ${{ steps.engine.outputs.sha }}
           path: app
+      # Match pr-checks and avoid inheriting a PEP 668-managed Homebrew Python from the runner.
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
       - name: Report immutable content + engine revisions

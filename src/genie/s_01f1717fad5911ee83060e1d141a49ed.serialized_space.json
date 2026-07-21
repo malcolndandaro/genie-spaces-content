@@ -79,27 +79,223 @@
       {
         "id": "01f1718013e01af1807beecfdf502120",
         "content": [
-          "Ambiente para Q&A de volume de recebíveis antecipados por mês."
+          "Ambiente para Q&A de volume de recebíveis antecipados por mês.\n",
+          "Sempre responda em Portugues."
         ]
       }
-    ]
+    ],
+    "join_specs": [
+      {
+        "id": "01f17180e5a41e5bb1e192c57aee5b89",
+        "left": {
+          "identifier": "`dev_recebiveis`.`diamond`.`fato_recebiveis`",
+          "alias": "f"
+        },
+        "right": {
+          "identifier": "`dev_recebiveis`.`diamond`.`dim_cedente`",
+          "alias": "c"
+        },
+        "sql": [
+          "f.cedente_id = c.cedente_id",
+          "--rt=FROM_RELATIONSHIP_TYPE_MANY_TO_ONE--"
+        ]
+      }
+    ],
+    "sql_snippets": {
+      "filters": [
+        {
+          "id": "01f17180e5a612eca1af7d8118317f66",
+          "sql": [
+            "f.status = 'LIQUIDADO'"
+          ],
+          "display_name": "liquidated receivables",
+          "instruction": [
+            "WHEN_TO_USE: When user requests 'antecipações' or volume of receivables that have completed their liquidation. SCOPE_TABLES: fato_recebiveis. RISK_IF_MISUSED: If used as a global default, would exclude non-liquidated statuses even when broader analysis is desired."
+          ]
+        },
+        {
+          "id": "01f17180e5a71a4fa354216619200276",
+          "sql": [
+            "YEAR(f.data) = YEAR(CURRENT_DATE())"
+          ],
+          "display_name": "this year",
+          "instruction": [
+            "WHEN_TO_USE: When user requests statistics or aggregates for 'este ano', 'this year', or wants the latest annual results. SCOPE_TABLES: Any table with a suitable date column (here, fato_recebiveis.data). TIMEFRAME_HINT: Calendar year matching system date. RISK_IF_MISUSED: Using this as a default can omit past years or more flexible windows."
+          ]
+        },
+        {
+          "id": "01f17180fb111e8583c39e05cde31219",
+          "sql": [
+            "fato_recebiveis.data >= date_trunc('MONTH', dateadd(MONTH, -2, CURRENT_DATE)) AND fato_recebiveis.data <= CURRENT_DATE"
+          ],
+          "display_name": "last 3 months",
+          "instruction": [
+            "WHEN_TO_USE: When user requests 'últimos 3 meses', 'last 3 months', or similar rolling time window; SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis; TIMEFRAME_HINT: Includes full months, from the start of the month two months ago through today (inclusive); RISK_IF_MISUSED: Not a default, do not use for other arbitrary date intervals."
+          ]
+        },
+        {
+          "id": "01f17180fb1315e2818a70f7fa921f0d",
+          "sql": [
+            "fato_recebiveis.status = 'ONERADO'"
+          ],
+          "display_name": "antecipated receivables",
+          "instruction": [
+            "WHEN_TO_USE: When user requests antecipated/antecipados receivables (e.g., for promo volume); SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis; RISK_IF_MISUSED: Using this as a default may undercount volumes if business definition of anticipation changes."
+          ]
+        },
+        {
+          "id": "01f17182faa214ab9f5c6c2ce7b973a3",
+          "sql": [
+            "fato_recebiveis.status = 'ONERADO'"
+          ],
+          "display_name": "antecipated receivables",
+          "instruction": [
+            "WHEN_TO_USE: When user requests 'antecipados' or antecipated receivables. SCOPE_TABLES: fato_recebiveis. RISK_IF_MISUSED: May undercount if business status mapping changes."
+          ]
+        },
+        {
+          "id": "01f17182faa31c32af5e09941c0a5224",
+          "sql": [
+            "fato_recebiveis.data >= date_trunc('MONTH', dateadd(MONTH, -2, CURRENT_DATE)) AND fato_recebiveis.data <= CURRENT_DATE"
+          ],
+          "display_name": "last 3 months",
+          "instruction": [
+            "WHEN_TO_USE: When user requests 'últimos 3 meses', 'last 3 months', or similar rolling period; SCOPE_TABLES: fato_recebiveis; TIMEFRAME_HINT: Includes full months (from start of month two months ago through today); RISK_IF_MISUSED: Using as a default for other intervals may misrepresent the window."
+          ]
+        },
+        {
+          "id": "01f17f90657a135ea6fb57cf18a6f751",
+          "sql": [
+            "dev_recebiveis.diamond.fato_recebiveis.status = 'ONERADO'"
+          ],
+          "display_name": "antecipated receivables",
+          "instruction": [
+            "WHEN_TO_USE: When user requests 'recebíveis antecipados' or 'antecipados' in volume/amount questions; SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis; RISK_IF_MISUSED: Not a global default for receivables, only use for 'antecipated' cases."
+          ]
+        },
+        {
+          "id": "01f17f90657c12049c21d4115542271e",
+          "sql": [
+            "dev_recebiveis.diamond.fato_recebiveis.data >= date_trunc('MONTH', dateadd(MONTH, -2, CURRENT_DATE)) AND dev_recebiveis.diamond.fato_recebiveis.data <= CURRENT_DATE"
+          ],
+          "display_name": "last 3 months",
+          "instruction": [
+            "WHEN_TO_USE: Use for 'últimos 3 meses', 'last 3 months' rolling-period questions; SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis; TIMEFRAME_HINT: Window includes full months, beginning at the start of two months ago, ending today. RISK_IF_MISUSED: Not for other arbitrary timeframes."
+          ]
+        },
+        {
+          "id": "01f1812956b51998a8aa0dd0a4db0ec6",
+          "sql": [
+            "fato_recebiveis.data >= date_trunc('MONTH', dateadd(MONTH, -2, CURRENT_DATE)) AND fato_recebiveis.data <= CURRENT_DATE"
+          ],
+          "display_name": "last 3 months",
+          "instruction": [
+            "WHEN_TO_USE: When user requests 'últimos 3 meses' or 'last 3 months', and needs a rolling window that includes all dates from the start of two months ago up to the current system date (inclusive). SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis. TIMEFRAME_HINT: Covers complete months plus current partial month up to today. RISK_IF_MISUSED: Using a window ending at next month's start (as in baseline) will incorrectly include future dates and inflate results."
+          ]
+        },
+        {
+          "id": "01f181383ad918d4b643b5d1a3566029",
+          "sql": [
+            "fato_recebiveis.data >= date_trunc('MONTH', dateadd(MONTH, -2, CURRENT_DATE)) AND fato_recebiveis.data <= CURRENT_DATE"
+          ],
+          "display_name": "last 3 months (inclusive to today)",
+          "instruction": [
+            "WHEN_TO_USE: When user requests 'últimos 3 meses' or 'last 3 months', and needs a rolling window that includes all dates from the start of two months ago up to the current system date (inclusive). SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis. TIMEFRAME_HINT: Covers complete months plus current partial month up to today. RISK_IF_MISUSED: Using a window ending at next month's start (as in baseline) will incorrectly include future dates and inflate results."
+          ]
+        },
+        {
+          "id": "01f181399a5e17a79e145983063ced80",
+          "sql": [
+            "dev_recebiveis.diamond.fato_recebiveis.status = 'REGISTRADO'"
+          ],
+          "display_name": "registered receivables",
+          "instruction": [
+            "WHEN_TO_USE: When user requests volume/metrics for 'registered receivables' or uses terms like 'registrado', as in 'recebíveis registrados' or 'volume registrado'. SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis. RISK_IF_MISUSED: Only use when aiming to limit to registered (not liquidated, antecipated, etc.); not a universal default for all receivables."
+          ]
+        },
+        {
+          "id": "01f18139cb3e181984fa4e56da338558",
+          "sql": [
+            "fato_recebiveis.data IS NOT NULL"
+          ],
+          "display_name": "recebíveis com data não nula",
+          "instruction": [
+            "WHEN_TO_USE: Whenever user requires counts or aggregations where missing 'data' field would undercut the calculation's integrity; SCOPE_TABLES: fato_recebiveis; RISK_IF_MISUSED: Treating as a global default could unnecessarily suppress data if design guarantees non-nulls, but critical if recent data could be partially incomplete or in ETL transition."
+          ]
+        },
+        {
+          "id": "01f18139cb3f1cb89528bf7e2e36d6da",
+          "sql": [
+            "fato_recebiveis.valor IS NOT NULL"
+          ],
+          "display_name": "recebíveis com valor não nulo",
+          "instruction": [
+            "WHEN_TO_USE: Use when calculating the sum/total/volume of receivables if missing (NULL) values in 'valor' would distort financial aggregates; SCOPE_TABLES: fato_recebiveis; RISK_IF_MISUSED: Not always required if ETL/business guarantees no NULLs, but essential for data quality during partial loads or data migration phases."
+          ]
+        },
+        {
+          "id": "01f1813aa83a188484027083d8b7cff3",
+          "sql": [
+            "dev_recebiveis.diamond.fato_recebiveis.cedente_id IS NOT NULL"
+          ],
+          "display_name": "recebíveis com cedente não nulo",
+          "instruction": [
+            "WHEN_TO_USE: Use this filter whenever results must be grouped or segmented by cedente (cedente_id), i.e., in 'por cedente' or 'by cedente' questions. SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis. RISK_IF_MISUSED: If omitted, NULL cedente_id rows may aggregate into a meaningless 'unknown' group, distorting total volumes or segment counts."
+          ]
+        }
+      ],
+      "expressions": [
+        {
+          "id": "01f1813a122814f6a3916f66b9d9110d",
+          "alias": "month",
+          "sql": [
+            "DATE_TRUNC('month', dev_recebiveis.diamond.fato_recebiveis.data)"
+          ],
+          "display_name": "month",
+          "instruction": [
+            "WHEN_TO_USE: For monthly reporting or aggregations based on registration date; SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis; TIMEFRAME_HINT: Uses calendar months, not fiscal or rolling periods. RISK_IF_MISUSED: Using other truncation types (week, year) would lead to different time grouping granularity."
+          ]
+        }
+      ],
+      "measures": [
+        {
+          "id": "01f17180e5a9100c8e63dfa8e93a5b3d",
+          "alias": "total_antecipated_volume",
+          "sql": [
+            "SUM(f.valor)"
+          ],
+          "display_name": "total antecipated volume",
+          "instruction": [
+            "WHEN_TO_USE: When calculating the total value of receivables that match business-qualifying filters (liquidated, this year, etc). SCOPE_TABLES: fato_recebiveis. RISK_IF_MISUSED: If filters are omitted, could result in overcounting."
+          ]
+        },
+        {
+          "id": "01f1813a122710b7922754b8b3254da1",
+          "alias": "monthly_registered_receivables_volume",
+          "sql": [
+            "SUM(CASE WHEN dev_recebiveis.diamond.fato_recebiveis.status = 'REGISTRADO' THEN dev_recebiveis.diamond.fato_recebiveis.valor ELSE 0 END)"
+          ],
+          "display_name": "monthly volume of registered receivables",
+          "instruction": [
+            "WHEN_TO_USE: When user requests monthly total registered receivables per cedente, as in questions about 'monthly volume' or 'volume registrado por mês'. SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis; GROUPING_HINT: Requires grouping both by month (truncated from date) and cedente_id. RISK_IF_MISUSED: Using this measure without monthly grouping will aggregate across all months and lose time granularity."
+          ]
+        },
+        {
+          "id": "01f1813a567a156287b5efb123aa0956",
+          "alias": "monthly_registered_volume_by_cedente",
+          "sql": [
+            "SUM(CASE WHEN dev_recebiveis.diamond.fato_recebiveis.status = 'REGISTRADO' THEN dev_recebiveis.diamond.fato_recebiveis.valor ELSE 0 END)"
+          ],
+          "display_name": "monthly volume of registered receivables by cedente",
+          "instruction": [
+            "WHEN_TO_USE: When the user asks for the total value of registered receivables per cedente for each month, i.e., for 'monthly volume by cedente'; SCOPE_TABLES: dev_recebiveis.diamond.fato_recebiveis; GROUPING_HINT: Requires grouping by both month (truncated registration date) and cedente_id. RISK_IF_MISUSED: Omitting GROUP BY or the status filter may cause overaggregation or include unregistered receivables."
+          ]
+        }
+      ]
+    }
   },
   "benchmarks": {
     "questions": [
-      {
-        "id": "1e14d42d4b3f0014d19104bdadbea9a8",
-        "question": [
-          "Quantos recebíveis existem na tabela de recebíveis?"
-        ],
-        "answer": [
-          {
-            "format": "SQL",
-            "content": [
-              "SELECT COUNT(*) AS total_recebiveis FROM dev_recebiveis.diamond.fato_recebiveis"
-            ]
-          }
-        ]
-      },
       {
         "id": "926d38e5103636b5264264f98823c822",
         "question": [
@@ -110,6 +306,20 @@
             "format": "SQL",
             "content": [
               "SELECT SUM(valor) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "1e14d42d4b3f0014d19104bdadbea9a8",
+        "question": [
+          "Quantos recebíveis existem na tabela de recebíveis?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT COUNT(*) AS total_recebiveis FROM dev_recebiveis.diamond.fato_recebiveis"
             ]
           }
         ]
