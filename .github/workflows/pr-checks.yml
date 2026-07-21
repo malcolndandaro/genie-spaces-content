@@ -59,6 +59,12 @@ jobs:
           repository: ${{ env.APP_REPO }}
           ref: ${{ steps.engine.outputs.sha }}
           path: app
+      # Never inherit the self-hosted machine's ambient Python. Homebrew Python is PEP 668 managed
+      # and rejects the pip installs below; pinning also keeps both jobs on the same tested runtime.
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       # 3. Overlay this PR's content into the app-repo working tree, so render.sh finds src/genie/*
       #    where it expects. --delete so a removed content file doesn't linger from the app checkout.
       - name: Overlay content src/ into the app working tree
@@ -143,6 +149,10 @@ jobs:
           repository: ${{ env.APP_REPO }}
           ref: ${{ steps.engine.outputs.sha }}
           path: app
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - name: Overlay content src/ into the app working tree
         run: rsync -a --delete content/src/ app/src/
       - name: Report immutable content + engine revisions
