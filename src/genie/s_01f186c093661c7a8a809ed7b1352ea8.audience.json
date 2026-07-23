@@ -1,0 +1,12 @@
+{
+  "principals": [
+    {
+      "principal": "pedro.perdomo@databricks.com",
+      "is_group": false
+    },
+    {
+      "principal": "users",
+      "is_group": true
+    }
+  ]
+}
