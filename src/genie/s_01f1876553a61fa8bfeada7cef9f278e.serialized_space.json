@@ -1,0 +1,328 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "10000000000000000000000000000001",
+        "question": [
+          "Qual é o valor total dos recebíveis por status?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000002",
+        "question": [
+          "Quais são os cinco cedentes com maior valor de recebíveis?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000003",
+        "question": [
+          "Qual é o valor total de recebíveis por bandeira?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "dev_recebiveis.diamond.dim_arranjo",
+        "description": [
+          "Dimensão de arranjos de pagamento, descrições e bandeiras."
+        ],
+        "column_configs": [
+          {
+            "column_name": "arranjo",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "bandeira",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "descricao",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "dev_recebiveis.diamond.dim_cedente",
+        "description": [
+          "Dimensão de empresas cedentes, com CNPJ, nome e UF."
+        ],
+        "column_configs": [
+          {
+            "column_name": "cedente_id",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "cnpj",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "nome",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "uf",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+        "description": [
+          "Fato de recebíveis com data, cedente, arranjo, valor em BRL e status."
+        ],
+        "column_configs": [
+          {
+            "column_name": "arranjo",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "cedente_id",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "data",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "status",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "valor",
+            "enable_format_assistance": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "20000000000000000000000000000001",
+        "content": [
+          "Responda sempre em português do Brasil. Valores monetários representam BRL e devem ser arredondados para duas casas decimais. Não invente colunas, filtros ou definições que não estejam nas tabelas. Quando a pergunta for ambígua, explique a interpretação adotada. Os status válidos são REGISTRADO, LIQUIDADO, ONERADO e CANCELADO. Considere recebíveis antecipados como aqueles com status ONERADO."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "30000000000000000000000000000001",
+        "question": [
+          "Qual é o valor total dos recebíveis por status?"
+        ],
+        "sql": [
+          "SELECT status, ROUND(SUM(valor), 2) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis GROUP BY status ORDER BY status"
+        ]
+      },
+      {
+        "id": "30000000000000000000000000000002",
+        "question": [
+          "Quais são os cinco cedentes com maior valor total de recebíveis?"
+        ],
+        "sql": [
+          "SELECT c.nome, ROUND(SUM(f.valor), 2) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis AS f INNER JOIN dev_recebiveis.diamond.dim_cedente AS c ON f.cedente_id = c.cedente_id GROUP BY c.nome ORDER BY valor_total DESC LIMIT 5"
+        ]
+      },
+      {
+        "id": "30000000000000000000000000000003",
+        "question": [
+          "Qual é o valor total de recebíveis por bandeira?"
+        ],
+        "sql": [
+          "SELECT a.bandeira, ROUND(SUM(f.valor), 2) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis AS f INNER JOIN dev_recebiveis.diamond.dim_arranjo AS a ON f.arranjo = a.arranjo GROUP BY a.bandeira ORDER BY valor_total DESC"
+        ]
+      }
+    ],
+    "join_specs": [
+      {
+        "id": "40000000000000000000000000000001",
+        "left": {
+          "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+          "alias": "f"
+        },
+        "right": {
+          "identifier": "dev_recebiveis.diamond.dim_cedente",
+          "alias": "c"
+        },
+        "sql": [
+          "f.cedente_id = c.cedente_id",
+          "--rt=FROM_RELATIONSHIP_TYPE_MANY_TO_ONE--"
+        ]
+      },
+      {
+        "id": "40000000000000000000000000000002",
+        "left": {
+          "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+          "alias": "f"
+        },
+        "right": {
+          "identifier": "dev_recebiveis.diamond.dim_arranjo",
+          "alias": "a"
+        },
+        "sql": [
+          "f.arranjo = a.arranjo",
+          "--rt=FROM_RELATIONSHIP_TYPE_MANY_TO_ONE--"
+        ]
+      }
+    ],
+    "sql_snippets": {
+      "filters": [
+        {
+          "id": "50000000000000000000000000000001",
+          "sql": [
+            "f.status = 'ONERADO'"
+          ],
+          "display_name": "recebíveis antecipados",
+          "instruction": [
+            "Use quando a pergunta mencionar recebíveis antecipados, antecipação ou valores onerados."
+          ]
+        },
+        {
+          "id": "50000000000000000000000000000002",
+          "sql": [
+            "f.data >= DATE_TRUNC('month', ADD_MONTHS(CURRENT_DATE(), -2)) AND f.data <= CURRENT_DATE()"
+          ],
+          "display_name": "últimos três meses",
+          "instruction": [
+            "Use para uma janela que começa no primeiro dia do mês de dois meses atrás e termina hoje."
+          ]
+        }
+      ],
+      "expressions": [
+        {
+          "id": "60000000000000000000000000000001",
+          "alias": "mes",
+          "sql": [
+            "DATE_TRUNC('month', f.data)"
+          ],
+          "display_name": "mês do recebível",
+          "instruction": [
+            "Use para agrupamentos mensais baseados na data do recebível."
+          ]
+        }
+      ],
+      "measures": [
+        {
+          "id": "70000000000000000000000000000001",
+          "alias": "valor_total_recebiveis",
+          "sql": [
+            "ROUND(SUM(f.valor), 2)"
+          ],
+          "display_name": "valor total dos recebíveis",
+          "instruction": [
+            "Soma o valor dos recebíveis no contexto dos filtros ativos."
+          ]
+        },
+        {
+          "id": "70000000000000000000000000000002",
+          "alias": "quantidade_recebiveis",
+          "sql": [
+            "COUNT(*)"
+          ],
+          "display_name": "quantidade de recebíveis",
+          "instruction": [
+            "Conta os recebíveis no contexto dos filtros ativos."
+          ]
+        }
+      ]
+    }
+  },
+  "benchmarks": {
+    "questions": [
+      {
+        "id": "80000000000000000000000000000006",
+        "question": [
+          "Qual é o valor total dos recebíveis antecipados?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT ROUND(SUM(valor), 2) AS valor_total_antecipado FROM dev_recebiveis.diamond.fato_recebiveis WHERE status = 'ONERADO'"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "80000000000000000000000000000005",
+        "question": [
+          "Qual é o valor total de recebíveis por bandeira?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT a.bandeira, ROUND(SUM(f.valor), 2) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis AS f INNER JOIN dev_recebiveis.diamond.dim_arranjo AS a ON f.arranjo = a.arranjo GROUP BY a.bandeira ORDER BY valor_total DESC"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "80000000000000000000000000000004",
+        "question": [
+          "Quais são os cinco cedentes com maior valor total de recebíveis?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT c.nome, ROUND(SUM(f.valor), 2) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis AS f INNER JOIN dev_recebiveis.diamond.dim_cedente AS c ON f.cedente_id = c.cedente_id GROUP BY c.nome ORDER BY valor_total DESC LIMIT 5"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "80000000000000000000000000000003",
+        "question": [
+          "Qual é o valor total dos recebíveis por status?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT status, ROUND(SUM(valor), 2) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis GROUP BY status ORDER BY status"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "80000000000000000000000000000002",
+        "question": [
+          "Quantos recebíveis existem?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT COUNT(*) AS quantidade_recebiveis FROM dev_recebiveis.diamond.fato_recebiveis"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "80000000000000000000000000000001",
+        "question": [
+          "Qual é o valor total de todos os recebíveis?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT ROUND(SUM(valor), 2) AS valor_total FROM dev_recebiveis.diamond.fato_recebiveis"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
