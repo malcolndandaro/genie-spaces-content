@@ -1,0 +1,155 @@
+{
+  "version": 2,
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "dev_recebiveis.diamond.dim_arranjo",
+        "column_configs": [
+          {
+            "column_name": "arranjo",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "bandeira",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "descricao",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "dev_recebiveis.diamond.dim_cedente",
+        "column_configs": [
+          {
+            "column_name": "cedente_id",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "cnpj",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "nome",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "uf",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "dev_recebiveis.diamond.fato_recebiveis",
+        "column_configs": [
+          {
+            "column_name": "arranjo",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "cedente_id",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "data",
+            "enable_format_assistance": true
+          },
+          {
+            "column_name": "status",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "valor",
+            "enable_format_assistance": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "01f1718013e01af1807beecfdf502120",
+        "content": [
+          "Ambiente para Q&A de volume de recebíveis antecipados por mês."
+        ]
+      }
+    ]
+  },
+  "benchmarks": {
+    "questions": [
+      {
+        "id": "01f1717ffb671d0b874c08d9bdc6946b",
+        "question": [
+          "Quais os 5 principais clientes em volume de antecipações este ano?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "WITH ranked_cedentes AS (\n",
+              "  SELECT\n",
+              "    c.cedente_id,\n",
+              "    c.nome,\n",
+              "    c.cnpj,\n",
+              "    SUM(f.valor) AS volume_antecipado,\n",
+              "    RANK() OVER (ORDER BY SUM(f.valor) DESC) AS rnk\n",
+              "  FROM\n",
+              "    `dev_recebiveis`.`diamond`.`fato_recebiveis` f\n",
+              "      JOIN `dev_recebiveis`.`diamond`.`dim_cedente` c\n",
+              "        ON f.cedente_id = c.cedente_id\n",
+              "  WHERE\n",
+              "    f.status = 'LIQUIDADO'\n",
+              "    AND YEAR(f.data) = YEAR(CURRENT_DATE())\n",
+              "  GROUP BY\n",
+              "    c.cedente_id,\n",
+              "    c.nome,\n",
+              "    c.cnpj\n",
+              ")\n",
+              "SELECT\n",
+              "  cedente_id,\n",
+              "  nome,\n",
+              "  cnpj,\n",
+              "  volume_antecipado\n",
+              "FROM\n",
+              "  ranked_cedentes\n",
+              "WHERE\n",
+              "  rnk <= 5\n",
+              "ORDER BY\n",
+              "  volume_antecipado DESC;"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "01f1717fd9f71517829d361396e50d9f",
+        "question": [
+          "Qual o volume de recebíveis antecipados nos últimos 3 meses?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT\n",
+              "  SUM(fato_recebiveis.valor) AS volume_antecipado\n",
+              "FROM\n",
+              "  dev_recebiveis.diamond.fato_recebiveis\n",
+              "WHERE\n",
+              "  fato_recebiveis.status = 'ONERADO'\n",
+              "  AND fato_recebiveis.data >= date_trunc('MONTH', dateadd(MONTH, -2, CURRENT_DATE))\n",
+              "  AND fato_recebiveis.data <= CURRENT_DATE;"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
