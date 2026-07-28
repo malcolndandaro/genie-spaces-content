@@ -83,6 +83,16 @@ jobs:
                     -- 'src/genie/*' | python3 app/scripts/changed_space_slugs.py)"
           echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
           echo "Changed space slugs: ${slugs:-(none)}"
+      # AI/BI dashboards are gated the SAME way and with the SAME scoping rule: only the dashboards
+      # this PR actually changed. Their slug namespace is disjoint from the Genie one (d_* vs s_*), so
+      # the two lists can never be confused for one another.
+      - name: Compute changed dashboard slugs
+        id: changed_dashboards
+        run: |
+          slugs="$(git -C content diff --name-only '${{ github.event.pull_request.base.sha }}' HEAD \
+                    -- 'src/dashboards/*' | python3 app/scripts/changed_space_slugs.py --kind dashboard)"
+          echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
+          echo "Changed dashboard slugs: ${slugs:-(none)}"
       - uses: databricks/setup-cli@main
         with:
           version: 1.4.0
@@ -111,6 +121,27 @@ jobs:
             [ -f "$f" ] || { echo "skip ${slug}: no rendered artifact"; continue; }
             python3 scripts/check_audience.py "$f" "build/genie/${slug}.audience.json"
             python3 scripts/check_eval.py "$f"
+          done
+      # The dashboard gates, deliberately IN THIS JOB rather than a new one: this job already holds
+      # the prod SP credentials + the prod warehouse id that DASH-SQL needs, and a fourth app-repo
+      # checkout would break the content repo's `test_engine_lock` invariant (exactly 3) while a new
+      # required check would mean re-configuring branch protection. Job NAMES stay untouched.
+      #
+      # A dashboard has no benchmarks, so EVAL-01/eval-run do not apply. Its quality floor is instead:
+      #   AUDIENCE-01  — same principal/table validation, over the tables parsed from dataset SQL;
+      #   DASH-01..04  — structural integrity (offline);
+      #   DASH-SQL     — every dataset query actually EXPLAINs against the PROD warehouse.
+      - name: AUDIENCE-01 + DASH structural + DASH-SQL (governance gates, only changed dashboards)
+        working-directory: app
+        run: |
+          python3 -m pip install -q 'databricks-sdk>=0.111.0'
+          for slug in ${{ steps.changed_dashboards.outputs.slugs }}; do
+            f="build/dashboards/${slug}.lvdash.json"
+            [ -f "$f" ] || { echo "skip ${slug}: no rendered artifact"; continue; }
+            python3 scripts/check_audience.py "$f" "build/dashboards/${slug}.audience.json" --kind dashboard
+            python3 scripts/check_dashboard.py "$f"
+            python3 scripts/check_dashboard_sql.py "$f" \
+              --warehouse-id "${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}"
           done
 
   # The eval-run PASS-RATE gate (blocks the merge on a below-threshold score). Its own job because it
