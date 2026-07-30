@@ -67,14 +67,21 @@ def test_dashboard_gates_run_without_adding_a_required_check_or_an_app_checkout(
 
 
 def test_dashboard_sidecars_follow_the_same_contract_as_spaces():
-    """Every promotable dashboard needs the same required sidecars a Space does: a non-empty `.title`
-    (it becomes display_name AND is the deploy's only id-resolution key) and a valid AudienceSpec."""
-    dashboards = sorted((ROOT / "src" / "dashboards").glob("*.lvdash.json"))
+    """Every promotable dashboard needs the same required sidecars a Space does: a non-empty title
+    (it becomes display_name AND is the deploy's only id-resolution key) and a valid AudienceSpec.
+
+    Dashboards use the NESTED layout — `src/dashboards/<area>/<name>/` with FIXED sidecar names inside
+    (`dashboard.lvdash.json`, `title`, `audience.json`, optional `mapping.json`/`revision.json`) — so a
+    business author browses the repo by the area that owns the painel. There is no version directory:
+    git already holds the history, and a new revision replaces the same files.
+    """
+    dashboards = sorted((ROOT / "src" / "dashboards").glob("*/*/dashboard.lvdash.json"))
     assert dashboards, "expected at least one promotable dashboard"
     for artifact in dashboards:
-        slug = artifact.name[: -len(".lvdash.json")]
-        title = artifact.with_name(f"{slug}.title")
-        audience = artifact.with_name(f"{slug}.audience.json")
+        resource_dir = artifact.parent
+        slug = f"{resource_dir.parent.name}/{resource_dir.name}"
+        title = resource_dir / "title"
+        audience = resource_dir / "audience.json"
         assert title.exists() and title.read_text(encoding="utf-8").strip(), f"{slug}: missing title"
         assert audience.exists(), f"{slug}: missing AudienceSpec"
         spec = json.loads(audience.read_text(encoding="utf-8"))
@@ -83,6 +90,26 @@ def test_dashboard_sidecars_follow_the_same_contract_as_spaces():
             assert set(principal) == {"principal", "is_group"}, f"{slug}: bad principal shape"
             assert principal["principal"], f"{slug}: empty principal"
             assert "level" not in principal and "permission_level" not in principal
+
+
+def test_no_dashboard_is_left_in_the_retired_flat_layout():
+    """The flat `src/dashboards/<slug>.lvdash.json` shape is retired. A file left there would be
+    silently INVISIBLE to render (which globs `*/*/dashboard.lvdash.json`) — deployed content that
+    nobody notices stopped being deployed."""
+    stray = sorted((ROOT / "src" / "dashboards").glob("*.lvdash.json"))
+    assert not stray, f"migrate these to src/dashboards/<area>/<name>/: {[p.name for p in stray]}"
+
+
+def test_every_dashboard_is_filed_under_a_path_safe_area():
+    """The area is a directory AND part of a git branch + DABs resource key, so it must be safe by
+    construction. The engine's controlled vocabulary is the gate; this is the content-side backstop."""
+    import re
+
+    for artifact in sorted((ROOT / "src" / "dashboards").glob("*/*/dashboard.lvdash.json")):
+        area = artifact.parent.parent.name
+        name = artifact.parent.name
+        assert re.fullmatch(r"[a-z][a-z0-9_]{1,31}", area), f"unsafe area segment: {area!r}"
+        assert re.fullmatch(r"[a-z][a-z0-9_]{0,47}", name), f"unsafe name segment: {name!r}"
 
 
 def test_seed_has_no_retired_group_or_data_grant_mutation():

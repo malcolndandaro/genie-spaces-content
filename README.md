@@ -13,9 +13,18 @@ Steward approval gate.
 
 ```
 src/
-├── genie/        # per-space definitions (serialized_space + .title + required .audience.json)
-├── dashboards/   # AI/BI (Lakeview) dashboard JSON
-└── setup/        # synthetic seed data for the demo domain
+├── genie/                          # per-space definitions, FLAT:
+│                                   #   <slug>.serialized_space.json
+│                                   #   <slug>.title  <slug>.audience.json
+│                                   #   <slug>.mapping.json (opt)  <slug>.revision.json
+├── dashboards/                     # AI/BI (Lakeview) painéis, NESTED by business area:
+│   └── <area>/<name>/              #   risco/volume_por_bandeira/
+│       ├── dashboard.lvdash.json   #   the promoted definition
+│       ├── title                   #   production display_name (also the deploy's id-resolution key)
+│       ├── audience.json           #   required AudienceSpec (derives CAN_READ)
+│       ├── mapping.json            #   optional table de-para
+│       └── revision.json           #   immutable content/engine revision pair
+└── setup/                          # synthetic seed data for the demo domain
 ```
 
 ## Why a separate repo
