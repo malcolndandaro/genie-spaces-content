@@ -87,6 +87,11 @@ jobs:
         env:
           ENGINE_REVISION: ${{ steps.engine.outputs.sha }}
           CONTENT_REVISION: ${{ steps.revision.outputs.content }}
+          # Destructive deploys are OFF unless a human sets this repo variable to "1" for the run.
+          # `bundle deploy` otherwise refuses to delete/recreate a managed resource, which is the
+          # right default: recreating a dashboard changes its id and permanent URL. Set it, run the
+          # deploy, then UNSET it — it must never be a standing configuration.
+          ALLOW_DESTRUCTIVE_DEPLOY: ${{ vars.ALLOW_DESTRUCTIVE_DEPLOY }}
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
           python3 scripts/deploy_attempt.py \
