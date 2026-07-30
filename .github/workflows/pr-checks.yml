@@ -89,7 +89,14 @@ jobs:
       - name: Compute changed dashboard slugs
         id: changed_dashboards
         run: |
-          slugs="$(git -C content diff --name-only '${{ github.event.pull_request.base.sha }}' HEAD \
+          # `--diff-filter=d` drops DELETIONS. A removed dashboard has nothing left to render, so
+          # feeding its slug to the gates below would trip their fail-closed branch on a PR whose
+          # whole purpose is the removal. The gates keep failing closed for a slug that still exists
+          # in src/ but produced no artifact — which is the real "render disagrees with the diff" bug
+          # they were written for. Retiring a dashboard is validated by the deploy's own
+          # forward-only reconciliation, not by re-checking a file the PR deliberately deleted.
+          slugs="$(git -C content diff --name-only --diff-filter=d \
+                    '${{ github.event.pull_request.base.sha }}' HEAD \
                     -- 'src/dashboards/*' | python3 app/scripts/changed_space_slugs.py --kind dashboard)"
           echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
           echo "Changed dashboard slugs: ${slugs:-(none)}"
