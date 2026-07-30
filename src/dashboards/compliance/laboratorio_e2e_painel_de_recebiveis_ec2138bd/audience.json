@@ -1,8 +1,0 @@
-{
-  "principals": [
-    {
-      "principal": "users",
-      "is_group": true
-    }
-  ]
-}
