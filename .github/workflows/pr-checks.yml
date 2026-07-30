@@ -136,9 +136,19 @@ jobs:
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
           for slug in ${{ steps.changed_dashboards.outputs.slugs }}; do
-            f="build/dashboards/${slug}.lvdash.json"
-            [ -f "$f" ] || { echo "skip ${slug}: no rendered artifact"; continue; }
-            python3 scripts/check_audience.py "$f" "build/dashboards/${slug}.audience.json" --kind dashboard
+            # NESTED layout: build/dashboards/<area>/<name>/dashboard.lvdash.json with FIXED sidecar
+            # names inside. Do NOT rebuild the flat `<slug>.lvdash.json` shape — a wrong path makes
+            # every gate below `skip` and the required check pass GREEN without validating anything
+            # (observed live in run 30571328245: both painéis skipped, check green).
+            dir="build/dashboards/${slug}"
+            f="${dir}/dashboard.lvdash.json"
+            if [ ! -f "$f" ]; then
+              # Fail CLOSED: the slug came from this PR's own diff, so a missing rendered artifact
+              # means render disagreed with the diff — never a reason to pass.
+              echo "::error title=DASH::${slug}: rendered artifact not found at ${f} — render and the changed-slug computation disagree"
+              exit 1
+            fi
+            python3 scripts/check_audience.py "$f" "${dir}/audience.json" --kind dashboard
             python3 scripts/check_dashboard.py "$f"
             python3 scripts/check_dashboard_sql.py "$f" \
               --warehouse-id "${{ vars.DATABRICKS_PROD_WAREHOUSE_ID }}"

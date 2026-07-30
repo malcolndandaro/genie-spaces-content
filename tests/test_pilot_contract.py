@@ -117,3 +117,31 @@ def test_seed_has_no_retired_group_or_data_grant_mutation():
     assert ("consumer_" + "group") not in seed
     assert "GRANT USE" not in seed
     assert "GRANT SELECT" not in seed
+
+
+def test_the_dashboard_gate_reads_the_nested_artifact_path_and_fails_closed():
+    """REGRESSION: the gate loop must build the NESTED artifact path, and must FAIL on a miss.
+
+    Observed live (run 30571328245): the loop built the retired flat path
+    `build/dashboards/<slug>.lvdash.json`, so with a nested slug the file never existed, every gate
+    `skip`ped, and `bundle validate (prod)` passed GREEN having validated nothing. A gate that cannot
+    find its input must fail, not continue — the slug came from this PR's own diff.
+    """
+    pr = (ROOT / ".github" / "workflows" / "pr-checks.yml").read_text()
+    # The gate step is the one that loops over the changed DASHBOARD slugs.
+    marker = "for slug in ${{ steps.changed_dashboards.outputs.slugs }}"
+    assert marker in pr, "the dashboard gate loop is missing"
+    # Bound the slice at the loop's own `done`, or the Genie loop in the next JOB bleeds in.
+    body = pr.split(marker, 1)[1]
+    dashboard_step = body.split("\n          done", 1)[0]
+
+    # The nested shape, with fixed sidecar names inside the resource directory.
+    assert 'dir="build/dashboards/${slug}"' in dashboard_step
+    assert 'f="${dir}/dashboard.lvdash.json"' in dashboard_step
+    assert '"${dir}/audience.json"' in dashboard_step
+    # The retired flat shape must not reappear.
+    assert 'build/dashboards/${slug}.lvdash.json' not in pr
+    assert 'build/dashboards/${slug}.audience.json' not in pr
+    # And a missing artifact is a failure, not a skip.
+    assert "exit 1" in dashboard_step
+    assert "skip ${slug}" not in dashboard_step
