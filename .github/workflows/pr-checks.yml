@@ -99,7 +99,11 @@ jobs:
       - name: Unit tests (engine + engine API)
         working-directory: app
         run: |
-          python3 -m pip install -q 'databricks-sdk>=0.111.0' fastapi uvicorn httpx pytest
+          # pyyaml is a TEST-only dependency (no product code imports yaml — the render emits it by
+          # hand). Without it, the three YAML-injection tests that prove a crafted dashboard title
+          # cannot inject a sibling `embed_credentials: true` key ERROR on import, so this required
+          # check passes while silently verifying less than it appears to.
+          python3 -m pip install -q 'databricks-sdk>=0.111.0' fastapi uvicorn httpx pytest pyyaml
           python3 -m pytest tests/ -q
       - name: Pre-render + identifier allowlist (rejects foreign-env / cross-domain refs)
         working-directory: app
