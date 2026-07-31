@@ -1,0 +1,230 @@
+{
+  "datasets": [
+    {
+      "name": "ds_volume_bandeira",
+      "displayName": "Volume por bandeira",
+      "queryLines": [
+        "SELECT a.bandeira AS bandeira, SUM(f.valor) AS volume_total\n",
+        "FROM dev_recebiveis.diamond.fato_recebiveis AS f\n",
+        "JOIN dev_recebiveis.diamond.dim_arranjo AS a ON f.arranjo = a.arranjo\n",
+        "WHERE f.status = 'REGISTRADO'\n",
+        "GROUP BY a.bandeira\n",
+        "ORDER BY volume_total DESC"
+      ]
+    },
+    {
+      "name": "ds_top_cedentes",
+      "displayName": "Maiores cedentes",
+      "queryLines": [
+        "SELECT c.nome AS cedente, c.uf AS uf, COUNT(*) AS qtd, SUM(f.valor) AS valor_total\n",
+        "FROM dev_recebiveis.diamond.fato_recebiveis AS f\n",
+        "JOIN dev_recebiveis.diamond.dim_cedente AS c ON f.cedente_id = c.cedente_id\n",
+        "GROUP BY c.nome, c.uf\n",
+        "ORDER BY valor_total DESC\n",
+        "LIMIT 10"
+      ]
+    },
+    {
+      "name": "ds_evolucao_status",
+      "displayName": "Evolução por status",
+      "queryLines": [
+        "SELECT date_trunc('MONTH', f.data) AS mes, f.status AS status,\n",
+        "       SUM(f.valor) AS valor_total\n",
+        "FROM dev_recebiveis.diamond.fato_recebiveis AS f\n",
+        "GROUP BY date_trunc('MONTH', f.data), f.status\n",
+        "ORDER BY mes"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "pagina_principal",
+      "displayName": "Recebíveis — visão geral",
+      "layout": [
+        {
+          "widget": {
+            "name": "w_titulo",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Painel de Recebíveis — dev_recebiveis.diamondFonte: tabelas Diamond (gold). Metodologia de registro conforme [BCB 4.734](https://en.wikipedia.org/wiki/Receivable)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "w_volume_bandeira",
+            "queries": [
+              {
+                "name": "q_bandeira",
+                "query": {
+                  "datasetName": "ds_volume_bandeira",
+                  "fields": [
+                    {
+                      "name": "bandeira",
+                      "expression": "`bandeira`"
+                    },
+                    {
+                      "name": "volume_total",
+                      "expression": "`volume_total`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "bandeira",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Bandeira"
+                },
+                "y": {
+                  "fieldName": "volume_total",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Volume (BRL)"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_top_cedentes",
+            "queries": [
+              {
+                "name": "q_cedentes",
+                "query": {
+                  "datasetName": "ds_top_cedentes",
+                  "fields": [
+                    {
+                      "name": "cedente",
+                      "expression": "`cedente`"
+                    },
+                    {
+                      "name": "valor_total",
+                      "expression": "`valor_total`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "valor_total",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Valor total (BRL)"
+                },
+                "y": {
+                  "fieldName": "cedente",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Cedente"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 3,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "w_evolucao",
+            "queries": [
+              {
+                "name": "q_evolucao",
+                "query": {
+                  "datasetName": "ds_evolucao_status",
+                  "fields": [
+                    {
+                      "name": "mes",
+                      "expression": "`mes`"
+                    },
+                    {
+                      "name": "valor_total",
+                      "expression": "`valor_total`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "mes",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Mês"
+                },
+                "y": {
+                  "fieldName": "valor_total",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Valor (BRL)"
+                },
+                "color": {
+                  "fieldName": "status",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Status"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    }
+  }
+}
