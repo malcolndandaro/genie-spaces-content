@@ -92,6 +92,12 @@ jobs:
           # right default: recreating a dashboard changes its id and permanent URL. Set it, run the
           # deploy, then UNSET it — it must never be a standing configuration.
           ALLOW_DESTRUCTIVE_DEPLOY: ${{ vars.ALLOW_DESTRUCTIVE_DEPLOY }}
+          # An EMPTY content tree is refused at preflight, because for a bundle it reads as "delete
+          # every managed resource". Turning that into a deliberate DECOMMISSION needs BOTH this and
+          # the destructive flag above: emptiness alone, or destruction alone, still fails closed, so
+          # an `src/` lost by accident cannot wipe prod. Re-promotion assigns NEW ids and permanent
+          # URLs (git keeps definitions, never identity). Set both, run, then DELETE both.
+          ALLOW_EMPTY_CONTENT_DEPLOY: ${{ vars.ALLOW_EMPTY_CONTENT_DEPLOY }}
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
           python3 scripts/deploy_attempt.py \
