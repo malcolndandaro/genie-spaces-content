@@ -97,6 +97,14 @@ jobs:
           # the destructive flag above: emptiness alone, or destruction alone, still fails closed, so
           # an `src/` lost by accident cannot wipe prod. Re-promotion assigns NEW ids and permanent
           # URLs (git keeps definitions, never identity). Set both, run, then DELETE both.
+          #
+          # ORDER MATTERS, and getting it wrong costs a whole run: `vars.*` is resolved when the job
+          # STARTS, so a variable set after that resolves EMPTY for the run already in flight — even
+          # while the job sits paused at the Environment gate, and even though `gh variable list`
+          # then shows it set. Run 31046517311 failed exactly this way (flags set 18s late, both
+          # read empty, preflight refused, nothing mutated). Set both variables BEFORE approving the
+          # gate, and never "fix" it by re-running: a re-run replays the original commit AND its
+          # captured environment. Push a fresh commit instead.
           ALLOW_EMPTY_CONTENT_DEPLOY: ${{ vars.ALLOW_EMPTY_CONTENT_DEPLOY }}
         run: |
           python3 -m pip install -q 'databricks-sdk>=0.111.0'
